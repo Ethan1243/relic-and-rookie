@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Relic & Rookie — Trading Cards, Vintage & Funko Pops</title>
+<link rel="stylesheet" href="styles.css" />
+<link rel="preconnect" href="https://images.pokemontcg.io" />
+<link rel="preconnect" href="https://images.scrydex.com" />
+<link rel="preconnect" href="https://cards.scryfall.io" />
+<link rel="preconnect" href="https://images.ygoprodeck.com" />
+</head>
+<body>
+<header class="site-header">
+  <div class="container header-inner">
+    <a href="#" class="brand">
+      <span class="brand-mark">R&amp;R</span>
+      <span class="brand-name">Relic &amp; Rookie</span>
+    </a>
+    <nav class="nav">
+      <a href="#cards">Cards</a>
+      <a href="#vintage">Vintage</a>
+      <a href="#funko">Funko Pops</a>
+      <a href="#about">About</a>
+    </nav>
+    <button id="cart-button" class="cart-button" aria-label="Open cart">
+      Cart <span id="cart-count" class="cart-count">0</span>
+    </button>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <h1>Real cards. Live prices. Shipped from a shop, not a warehouse.</h1>
+    <p>Browse the entire Pokémon, Magic: The Gathering, and Yu-Gi-Oh! print runs with live market prices. Hand-curated vintage and Funko alongside.</p>
+    <div class="hero-actions">
+      <a href="#cards" class="btn btn-primary">Browse cards</a>
+      <a href="#about" class="btn btn-ghost">Our story</a>
+    </div>
+  </div>
+</section>
+
+<main class="container">
+  <section id="cards" class="catalog">
+    <div class="catalog-head">
+      <h2>Trading cards</h2>
+      <p>Search across every printed card in three major TCGs. Market prices pulled live from public price feeds.</p>
+    </div>
+
+    <div class="tabs" role="tablist">
+      <button class="tab active" role="tab" data-game="pokemon">Pokémon</button>
+      <button class="tab" role="tab" data-game="magic">Magic: The Gathering</button>
+      <button class="tab" role="tab" data-game="yugioh">Yu-Gi-Oh!</button>
+    </div>
+
+    <div class="filter-bar">
+      <input id="search-input" type="search" placeholder="Search by card name…" autocomplete="off" />
+      <select id="set-select" aria-label="Filter by set"></select>
+      <div class="filter-meta" id="result-meta"></div>
+    </div>
+
+    <div id="card-grid" class="grid grid-cards" aria-live="polite"></div>
+    <div id="card-loading" class="loading" hidden>Loading cards…</div>
+    <div id="card-empty" class="empty" hidden>No cards matched that search.</div>
+
+    <div class="pagination">
+      <button id="page-prev" class="btn btn-ghost-dark">Previous</button>
+      <span id="page-info" class="page-info">Page 1</span>
+      <button id="page-next" class="btn btn-ghost-dark">Next</button>
+    </div>
+  </section>
+
+  <section id="vintage" class="catalog">
+    <div class="catalog-head">
+      <h2>Vintage</h2>
+      <p>One-of-a-kind pieces from the 60s through the 90s.</p>
+    </div>
+    <div class="grid grid-curated" data-curated="vintage"></div>
+  </section>
+
+  <section id="funko" class="catalog">
+    <div class="catalog-head">
+      <h2>Funko Pops</h2>
+      <p>Commons, chases, and the occasional grail.</p>
+    </div>
+    <div class="grid grid-curated" data-curated="funko"></div>
+  </section>
+
+  <section id="about" class="about">
+    <h2>About the shop</h2>
+    <p>
+      Relic &amp; Rookie is a small collectibles shop run by people who actually pull packs,
+      hunt estate sales, and chase down chase variants. Every item is inspected and graded honestly.
+      If you have a question about condition or provenance, just ask.
+    </p>
+    <p>
+      Free domestic shipping on orders over $75. Tracked, insured, and packed in toploaders or
+      bubble wrap as appropriate.
+    </p>
+  </section>
+</main>
+
+<aside id="cart-drawer" class="cart-drawer" aria-hidden="true">
+  <div class="cart-drawer-head">
+    <h3>Your cart</h3>
+    <button id="cart-close" class="icon-button" aria-label="Close cart">&times;</button>
+  </div>
+  <div id="cart-items" class="cart-items"></div>
+  <div class="cart-footer">
+    <div class="cart-totals">
+      <span>Subtotal</span>
+      <span id="cart-subtotal">$0.00</span>
+    </div>
+    <button id="checkout-button" class="btn btn-primary btn-block" disabled>Checkout</button>
+  </div>
+</aside>
+<div id="overlay" class="overlay" hidden></div>
+
+<div id="checkout-modal" class="modal" aria-hidden="true">
+  <div class="modal-content">
+    <div class="modal-head">
+      <h3>Checkout</h3>
+      <button id="checkout-close" class="icon-button" aria-label="Close checkout">&times;</button>
+    </div>
+    <form id="checkout-form" class="checkout-form" novalidate>
+      <div class="form-row">
+        <label>Full name<input name="name" required autocomplete="name" /></label>
+        <label>Email<input type="email" name="email" required autocomplete="email" /></label>
+      </div>
+      <label>Shipping address<input name="address" required autocomplete="street-address" /></label>
+      <div class="form-row">
+        <label>City<input name="city" required autocomplete="address-level2" /></label>
+        <label>State / Region<input name="region" required autocomplete="address-level1" /></label>
+        <label>Postal code<input name="postal" required autocomplete="postal-code" /></label>
+      </div>
+      <fieldset class="payment-section">
+        <legend>Payment</legend>
+        <label>Card number<input name="card" inputmode="numeric" placeholder="4242 4242 4242 4242" required /></label>
+        <div class="form-row">
+          <label>Expiry<input name="expiry" placeholder="MM/YY" required /></label>
+          <label>CVC<input name="cvc" inputmode="numeric" placeholder="123" required /></label>
+        </div>
+        <p class="demo-note">
+          Demo mode: no real payment is processed. Wire this form up to Stripe Checkout
+          (or a similar provider) on the server before going live.
+        </p>
+      </fieldset>
+      <div class="checkout-summary">
+        <div><span>Items</span><span id="summary-items">$0.00</span></div>
+        <div><span>Shipping</span><span id="summary-shipping">$0.00</span></div>
+        <div class="checkout-total"><span>Total</span><span id="summary-total">$0.00</span></div>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block">Place order</button>
+    </form>
+    <div id="checkout-success" class="checkout-success" hidden>
+      <h4>Order received</h4>
+      <p>Confirmation sent to <span id="success-email"></span>. Your collectibles ship within two business days.</p>
+      <button id="success-close" class="btn btn-primary">Keep browsing</button>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container">
+    <p>&copy; <span id="year"></span> Relic &amp; Rookie Collectibles. All rights reserved.</p>
+    <p class="muted">Authenticity guaranteed. Returns accepted within 14 days on ungraded items.</p>
+    <div class="attribution">
+      <h4>Data &amp; image credits</h4>
+      <ul>
+        <li>Pokémon card data and images via the <a href="https://pokemontcg.io" target="_blank" rel="noopener">Pokémon TCG API</a>. The literal and graphical information presented on this site about Pokémon TCG, including card images, is © 1995&ndash;2026 The Pokémon Company, Nintendo, Creatures Inc., and GAME FREAK Inc.</li>
+        <li>Magic: The Gathering card data and images via <a href="https://scryfall.com/docs/api" target="_blank" rel="noopener">Scryfall</a>. Magic: The Gathering is © Wizards of the Coast LLC. Card images used per Scryfall's image guidelines.</li>
+        <li>Yu-Gi-Oh! card data and images via the <a href="https://ygoprodeck.com/api-guide/" target="_blank" rel="noopener">YGOPRODeck API</a>. Yu-Gi-Oh! is © Konami Digital Entertainment.</li>
+        <li>Prices shown are live market estimates from the respective public APIs and may differ from in-shop pricing.</li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
