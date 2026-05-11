@@ -65,6 +65,17 @@
       <div class="filter-meta" id="result-meta"></div>
     </div>
 
+    <div class="chip-groups">
+      <div class="chip-group">
+        <span class="chip-label">Type</span>
+        <div class="chip-row" id="type-chips"></div>
+      </div>
+      <div class="chip-group">
+        <span class="chip-label">Rarity</span>
+        <div class="chip-row" id="rarity-chips"></div>
+      </div>
+    </div>
+
     <div id="card-grid" class="grid grid-cards" aria-live="polite"></div>
     <div id="card-loading" class="loading" hidden>Loading cards…</div>
     <div id="card-empty" class="empty" hidden>No cards matched that search.</div>
@@ -156,6 +167,18 @@
           <div class="chart-wrap">
             <svg id="price-chart" viewBox="0 0 600 220" preserveAspectRatio="none" aria-label="Price trend"></svg>
           </div>
+        </div>
+
+        <div class="detail-section">
+          <div class="section-head">
+            <h3>Recent sales &amp; population</h3>
+            <span class="section-sub">External lookups</span>
+          </div>
+          <div class="external-links" id="external-links"></div>
+          <p class="fine-print">
+            Opens eBay and PSA in a new tab with this card pre-filled. PSA pop reports require
+            visiting the PSA site directly — there's no free public API for population data.
+          </p>
         </div>
 
         <div class="detail-buy">

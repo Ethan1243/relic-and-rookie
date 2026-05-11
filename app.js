@@ -28,7 +28,11 @@
     page: 1,
     query: "",
     setId: "",
+    rarity: "",
+    type: "",
     sets: [],
+    rarities: [],
+    types: [],
     lastReqId: 0,
     activeCard: null,
     activeVariant: null
@@ -84,10 +88,26 @@
     return (data.data || []).map(s => ({ id: s.id, name: `${s.name} (${s.series})` }));
   }
 
-  async function fetchCards({ query, setId, page }) {
+  async function fetchRarities() {
+    const res = await fetch(`${API_BASE}/rarities`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  }
+
+  async function fetchTypes() {
+    const res = await fetch(`${API_BASE}/types`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  }
+
+  async function fetchCards({ query, setId, rarity, type, page }) {
     const parts = [];
     if (query) parts.push(`name:"*${query.replace(/"/g, "")}*"`);
     if (setId) parts.push(`set.id:${setId}`);
+    if (rarity) parts.push(`rarity:"${rarity.replace(/"/g, "")}"`);
+    if (type) parts.push(`types:${type}`);
     const q = parts.join(" ");
     const url = new URL(`${API_BASE}/cards`);
     if (q) url.searchParams.set("q", q);
@@ -144,6 +164,45 @@
     select.value = state.setId;
   }
 
+  async function populateChips() {
+    const typeRow = document.getElementById("type-chips");
+    const rarityRow = document.getElementById("rarity-chips");
+    try {
+      if (!state.types.length || !state.rarities.length) {
+        const [types, rarities] = await Promise.all([fetchTypes(), fetchRarities()]);
+        state.types = types;
+        state.rarities = rarities;
+      }
+    } catch (e) { console.error(e); }
+
+    typeRow.innerHTML =
+      `<button class="chip ${state.type === "" ? "active" : ""}" data-kind="type" data-value="">All</button>` +
+      state.types.map(t =>
+        `<button class="chip type-${escapeAttr(t)} ${state.type === t ? "active" : ""}" data-kind="type" data-value="${escapeAttr(t)}">${escapeText(t)}</button>`
+      ).join("");
+
+    rarityRow.innerHTML =
+      `<button class="chip ${state.rarity === "" ? "active" : ""}" data-kind="rarity" data-value="">All</button>` +
+      state.rarities.map(r =>
+        `<button class="chip ${state.rarity === r ? "active" : ""}" data-kind="rarity" data-value="${escapeAttr(r)}">${escapeText(r)}</button>`
+      ).join("");
+
+    document.querySelectorAll(".chip").forEach(c => {
+      c.addEventListener("click", () => {
+        const kind = c.dataset.kind;
+        const value = c.dataset.value;
+        if (kind === "type") state.type = value;
+        if (kind === "rarity") state.rarity = value;
+        state.page = 1;
+        // Re-render chip active states without refetching the chip lists
+        document.querySelectorAll(`.chip[data-kind="${kind}"]`).forEach(other => {
+          other.classList.toggle("active", other.dataset.value === value);
+        });
+        loadCards();
+      });
+    });
+  }
+
   async function loadCards() {
     const grid = document.getElementById("card-grid");
     const loading = document.getElementById("card-loading");
@@ -163,6 +222,8 @@
       const data = await fetchCards({
         query: state.query.trim(),
         setId: state.setId,
+        rarity: state.rarity,
+        type: state.type,
         page: state.page
       });
       if (reqId !== state.lastReqId) return;
@@ -336,6 +397,37 @@
     };
 
     drawChart(market, state.activeCard.cardmarket);
+    renderExternalLinks(state.activeCard);
+  }
+
+  function renderExternalLinks(card) {
+    const wrap = document.getElementById("external-links");
+    const baseQuery = [card.name, "pokemon", card.setName, card.number ? `${card.number}` : ""]
+      .filter(Boolean).join(" ");
+    const ebay = (extra) => {
+      const q = encodeURIComponent(`${baseQuery}${extra ? " " + extra : ""}`);
+      // _sacat=183454 = Trading Card Singles; LH_Sold=1 + LH_Complete=1 = sold listings only
+      return `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=183454&LH_Sold=1&LH_Complete=1`;
+    };
+    const ebayLive = () => {
+      const q = encodeURIComponent(baseQuery);
+      return `https://www.ebay.com/sch/i.html?_nkw=${q}&_sacat=183454`;
+    };
+    const psa = () => {
+      // PSA's public pop report search
+      const q = encodeURIComponent(card.name);
+      return `https://www.psacard.com/pop?text=${q}`;
+    };
+    const links = [
+      { label: "eBay — sold (raw)", url: ebay("") },
+      { label: "eBay — sold PSA 9", url: ebay("PSA 9") },
+      { label: "eBay — sold PSA 10", url: ebay("PSA 10") },
+      { label: "eBay — active listings", url: ebayLive() },
+      { label: "PSA pop report", url: psa() }
+    ];
+    wrap.innerHTML = links.map(l =>
+      `<a class="external-link" href="${escapeAttr(l.url)}" target="_blank" rel="noopener noreferrer">${escapeText(l.label)} <span class="ext-arrow">↗</span></a>`
+    ).join("");
   }
 
   // ---- Price history chart (inline SVG) ----
@@ -699,7 +791,7 @@
     document.getElementById("year").textContent = new Date().getFullYear();
     renderCart();
     bindEvents();
-    await populateSetFilter();
+    await Promise.all([populateSetFilter(), populateChips()]);
     loadCards();
   });
 })();
