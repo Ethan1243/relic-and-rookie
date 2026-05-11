@@ -474,6 +474,70 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
   border-color: rgba(255, 255, 255, 0.3);
 }
 
+.binder-tag {
+  position: absolute;
+  top: 8px;
+  right: 48px;
+  background: rgba(184, 137, 58, 0.95);
+  color: #1a1a1a;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.condition-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+.condition-pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+.qty-pill {
+  background: transparent;
+  color: var(--ink-fainter);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.binder-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+.binder-strip .strip-label {
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-fainter);
+  font-weight: 700;
+}
+.binder-strip .strip-price {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ink);
+}
+.binder-strip .strip-meta { color: var(--ink-soft); margin-left: auto; font-size: 12px; }
+
 .card-body {
   padding: 12px 14px 14px;
   display: flex;

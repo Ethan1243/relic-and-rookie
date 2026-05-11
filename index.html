@@ -26,6 +26,7 @@
       <span class="brand-name">Relic &amp; Rookie</span>
     </a>
     <nav class="nav">
+      <a href="#binder">Binder</a>
       <a href="#cards">Browse</a>
       <a href="#about">About</a>
     </nav>
@@ -56,6 +57,16 @@
 </section>
 
 <main class="container">
+  <section id="binder" class="catalog">
+    <div class="catalog-head">
+      <h2>From the Binder</h2>
+      <p>Cards in stock right now — hand-pulled, hand-priced. Click any card for full details and pricing context.</p>
+    </div>
+    <div id="binder-grid" class="grid grid-cards" aria-live="polite"></div>
+    <div id="binder-loading" class="loading">Loading inventory…</div>
+    <div id="binder-empty" class="empty" hidden>Binder is empty. Check back soon.</div>
+  </section>
+
   <section id="cards" class="catalog">
     <div class="catalog-head">
       <h2>Pokémon TCG catalog</h2>
@@ -179,6 +190,7 @@
         <div class="detail-eyebrow" id="detail-set"></div>
         <h2 class="detail-title" id="detail-name"></h2>
         <div class="detail-meta" id="detail-meta"></div>
+        <div class="binder-strip" id="detail-binder-strip" hidden></div>
 
         <div class="detail-section">
           <div class="section-head">
@@ -304,6 +316,7 @@
   </div>
 </footer>
 
+<script src="inventory.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

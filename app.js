@@ -42,7 +42,9 @@
     types: [],
     lastReqId: 0,
     activeCard: null,
-    activeVariant: null
+    activeVariant: null,
+    activeInventory: null,
+    inventoryCards: {}  // keyed by card id -> normalized card
   };
 
   // ---- Persistence ----
@@ -175,6 +177,96 @@
       primaryPrice,
       cardmarket: cm
     };
+  }
+
+  // ---- Inventory (from the binder) ----
+  async function renderBinder() {
+    const grid = document.getElementById("binder-grid");
+    const loading = document.getElementById("binder-loading");
+    const empty = document.getElementById("binder-empty");
+    const items = (window.INVENTORY || []).filter(i => i.qty > 0);
+
+    if (!items.length) {
+      loading.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+
+    grid.innerHTML = items.map(() =>
+      `<article class="card"><div class="card-image-wrap"><div class="card-img-placeholder">Loading…</div></div><div class="card-body"><div class="card-title">Loading…</div></div></article>`
+    ).join("");
+
+    const fetched = await Promise.all(items.map(async i => {
+      const card = await fetchCardById(i.id).catch(() => null);
+      return card ? { ...i, card } : null;
+    }));
+
+    loading.hidden = true;
+    const valid = fetched.filter(Boolean);
+    valid.forEach(entry => { state.inventoryCards[entry.id] = entry.card; });
+
+    if (!valid.length) {
+      grid.innerHTML = "";
+      empty.hidden = false;
+      empty.textContent = "Couldn't load inventory cards.";
+      return;
+    }
+
+    grid.innerHTML = valid.map(inventoryCardHTML).join("");
+    attachInventoryHandlers(valid);
+  }
+
+  function inventoryCardHTML(entry) {
+    const c = entry.card;
+    const rarity = c.rarity ? `<span class="tag rarity">${escapeText(c.rarity)}</span>` : "";
+    const binderTag = `<span class="binder-tag">Binder</span>`;
+    const img = c.image
+      ? `<img src="${escapeAttr(c.image)}" alt="${escapeAttr(c.name)}" loading="lazy" />`
+      : `<div class="card-img-placeholder">${escapeText(c.name)}</div>`;
+    const watched = !!state.watchlist[c.id];
+    const heart = `<button class="heart-btn ${watched ? "active" : ""}" data-watch="${escapeAttr(c.id)}" aria-label="${watched ? "Remove from" : "Add to"} watchlist">♥</button>`;
+    const meta = `${c.setName || ""}${c.number ? " · #" + c.number : ""}`;
+    const qtyLabel = entry.qty > 1 ? ` · ${entry.qty} available` : "";
+    return `
+      <article class="card" data-inv-id="${escapeAttr(c.id)}">
+        <div class="card-image-wrap">${rarity}${binderTag}${heart}${img}</div>
+        <div class="card-body">
+          <h3 class="card-title">${escapeText(c.name)}</h3>
+          <div class="card-meta">${escapeText(meta)}</div>
+          <div class="condition-row">
+            <span class="condition-pill">${escapeText(entry.condition || "Near Mint")}</span>
+            <span class="qty-pill">${qtyLabel ? qtyLabel.slice(3) : "In stock"}</span>
+          </div>
+          <div class="card-foot">
+            <div class="price">${formatMoney(entry.askingPrice)}</div>
+            <button class="view-btn" data-inv-view="${escapeAttr(c.id)}">View</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function attachInventoryHandlers(entries) {
+    const lookup = Object.fromEntries(entries.map(e => [e.id, e]));
+    document.querySelectorAll("#binder-grid .card").forEach(el => {
+      const id = el.dataset.invId;
+      el.addEventListener("click", () => openDetail(lookup[id].card, lookup[id]));
+    });
+    document.querySelectorAll("#binder-grid .view-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        const entry = lookup[btn.dataset.invView];
+        openDetail(entry.card, entry);
+      });
+    });
+    document.querySelectorAll("#binder-grid .heart-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        const id = btn.dataset.watch;
+        const entry = lookup[id];
+        toggleWatch(entry.card, btn);
+      });
+    });
   }
 
   // ---- Catalog rendering ----
@@ -352,9 +444,10 @@
   }
 
   // ---- Detail modal ----
-  function openDetail(card) {
+  function openDetail(card, inventoryEntry) {
     if (!card) return;
     state.activeCard = card;
+    state.activeInventory = inventoryEntry || null;
     state.activeVariant = card.primaryVariant || (card.variants[0] && card.variants[0].key) || null;
 
     document.getElementById("detail-set").textContent =
@@ -434,29 +527,57 @@
     }).join("");
 
     // Buy now price + handler
+    const inv = state.activeInventory;
+    const buyPrice = inv ? inv.askingPrice : market;
     const priceEl = document.getElementById("detail-price");
-    priceEl.textContent = market ? formatMoney(market) : "—";
+    priceEl.textContent = buyPrice ? formatMoney(buyPrice) : "—";
 
     const addBtn = document.getElementById("detail-add");
-    addBtn.disabled = !market;
+    addBtn.disabled = !buyPrice;
     addBtn.onclick = () => {
       const card = state.activeCard;
-      if (!card || !market) return;
+      if (!card || !buyPrice) return;
       const variantKey = state.activeVariant;
-      const cartKey = `pkm-${card.id}--${variantKey}`;
+      const cartKey = inv
+        ? `inv-${card.id}`
+        : `pkm-${card.id}--${variantKey}`;
       addToCart({
         id: cartKey,
         name: card.name,
         meta: `${card.setName || ""}${card.number ? " · #" + card.number : ""}`,
-        variant: variantLabel(variantKey),
-        price: market,
+        variant: inv ? `From the Binder · ${inv.condition || "Near Mint"}` : variantLabel(variantKey),
+        price: buyPrice,
         image: card.image
       });
       flashButton(addBtn, "Added");
     };
 
+    renderBinderStrip(inv, market);
     drawChart(market, state.activeCard.cardmarket);
     renderExternalLinks(state.activeCard);
+  }
+
+  function renderBinderStrip(inv, market) {
+    const wrap = document.getElementById("detail-binder-strip");
+    if (!wrap) return;
+    if (!inv) {
+      wrap.hidden = true;
+      wrap.innerHTML = "";
+      return;
+    }
+    const diff = market && inv.askingPrice
+      ? (inv.askingPrice - market)
+      : null;
+    const diffLabel = diff == null
+      ? ""
+      : (diff <= 0 ? `${formatMoney(Math.abs(diff))} under market` : `${formatMoney(diff)} over market`);
+    wrap.hidden = false;
+    wrap.innerHTML = `
+      <span class="strip-label">From the Binder</span>
+      <span class="strip-price">${formatMoney(inv.askingPrice)}</span>
+      <span class="condition-pill">${escapeText(inv.condition || "Near Mint")}</span>
+      <span class="strip-meta">${inv.qty} available${diffLabel ? " · " + escapeText(diffLabel) : ""}</span>
+    `;
   }
 
   function renderExternalLinks(card) {
@@ -1027,6 +1148,7 @@
     renderCart();
     renderWatchCount();
     bindEvents();
+    renderBinder();
     await Promise.all([populateSetFilter(), populateChips()]);
     loadCards();
   });
