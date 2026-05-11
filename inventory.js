@@ -2,9 +2,9 @@
 // Each entry references a Pokemon TCG API card id (e.g. "me3-16").
 // askingPrice is what the buyer pays. Set qty 0 to hide a card.
 window.INVENTORY = [
-  { id: "sv4pt5-223", qty: 1, condition: "Near Mint", askingPrice: 34.99 }, // Squawkabilly ex — Paldean Fates Shiny Ultra Rare
-  { id: "swsh11-172", qty: 1, condition: "Near Mint", askingPrice: 4.99 },  // Hisuian Electrode V — Lost Origin Ultra Rare
-  { id: "swsh7-169",  qty: 1, condition: "Near Mint", askingPrice: 6.49 },  // Flareon V — Evolving Skies Ultra Rare
+  { id: "sv4pt5-223", qty: 1, condition: "Near Mint", askingPrice: 1.49 },  // Squawkabilly ex — Paldean Fates Shiny Ultra Rare (market ~$1.08)
+  { id: "swsh11-172", qty: 1, condition: "Near Mint", askingPrice: 2.99 },  // Hisuian Electrode V — Lost Origin Ultra Rare (market ~$2.40)
+  { id: "swsh7-169",  qty: 1, condition: "Near Mint", askingPrice: 19.99 }, // Flareon V — Evolving Skies Full Art (market ~$18.28)
   { id: "me3-16",     qty: 1, condition: "Near Mint", askingPrice: 4.99 },  // Salazzle ex — Perfect Order Double Rare
   { id: "me3-19",     qty: 1, condition: "Near Mint", askingPrice: 0.99 },  // Dewgong — Perfect Order Rare
   { id: "me3-29",     qty: 1, condition: "Near Mint", askingPrice: 0.25 },  // Dedenne — Perfect Order Common
