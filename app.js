@@ -2,6 +2,7 @@
   const FREE_SHIPPING_THRESHOLD = 75;
   const SHIPPING_COST = 9.95;
   const STORAGE_KEY = "rr_cart_v3";
+  const WATCH_KEY = "rr_watchlist_v1";
   const THEME_KEY = "rr_theme";
   const PAGE_SIZE = 24;
   const API_BASE = "https://api.pokemontcg.io/v2";
@@ -25,11 +26,17 @@
 
   const state = {
     cart: loadCart(),
+    watchlist: loadWatchlist(),
     page: 1,
     query: "",
     setId: "",
     rarity: "",
     type: "",
+    supertype: "",
+    hpMin: "",
+    hpMax: "",
+    sort: "-set.releaseDate,number",
+    watchlistOnly: false,
     sets: [],
     rarities: [],
     types: [],
@@ -47,6 +54,15 @@
   }
   function persistCart() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.cart));
+  }
+  function loadWatchlist() {
+    try {
+      const raw = localStorage.getItem(WATCH_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) { return {}; }
+  }
+  function persistWatchlist() {
+    localStorage.setItem(WATCH_KEY, JSON.stringify(state.watchlist));
   }
 
   // ---- Helpers ----
@@ -102,21 +118,34 @@
     return data.data || [];
   }
 
-  async function fetchCards({ query, setId, rarity, type, page }) {
+  async function fetchCards({ query, setId, rarity, type, supertype, hpMin, hpMax, sort, page }) {
     const parts = [];
     if (query) parts.push(`name:"*${query.replace(/"/g, "")}*"`);
     if (setId) parts.push(`set.id:${setId}`);
     if (rarity) parts.push(`rarity:"${rarity.replace(/"/g, "")}"`);
     if (type) parts.push(`types:${type}`);
+    if (supertype) parts.push(`supertype:"${supertype.replace(/"/g, "")}"`);
+    if (hpMin || hpMax) {
+      const lo = hpMin || "*";
+      const hi = hpMax || "*";
+      parts.push(`hp:[${lo} TO ${hi}]`);
+    }
     const q = parts.join(" ");
     const url = new URL(`${API_BASE}/cards`);
     if (q) url.searchParams.set("q", q);
     url.searchParams.set("page", String(page));
     url.searchParams.set("pageSize", String(PAGE_SIZE));
-    url.searchParams.set("orderBy", "-set.releaseDate,number");
+    url.searchParams.set("orderBy", sort || "-set.releaseDate,number");
     const res = await fetch(url.toString());
     if (!res.ok) throw new Error("Pokemon API error");
     return res.json();
+  }
+
+  async function fetchCardById(id) {
+    const res = await fetch(`${API_BASE}/cards/${encodeURIComponent(id)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data ? normalizeCard(data.data) : null;
   }
 
   function normalizeCard(c) {
@@ -219,16 +248,38 @@
 
     const reqId = ++state.lastReqId;
     try {
-      const data = await fetchCards({
-        query: state.query.trim(),
-        setId: state.setId,
-        rarity: state.rarity,
-        type: state.type,
-        page: state.page
-      });
-      if (reqId !== state.lastReqId) return;
+      let cards, total;
+      if (state.watchlistOnly) {
+        const all = Object.values(state.watchlist);
+        let filtered = all;
+        const q = state.query.trim().toLowerCase();
+        if (q) filtered = filtered.filter(w => (w.name || "").toLowerCase().includes(q));
+        if (state.setId) filtered = filtered.filter(w => w.setId === state.setId);
+        if (state.rarity) filtered = filtered.filter(w => (w.rarity || "") === state.rarity);
+        total = filtered.length;
+        // Re-fetch full card by id so we have variants/prices for the detail modal
+        const start = (state.page - 1) * PAGE_SIZE;
+        const slice = filtered.slice(start, start + PAGE_SIZE);
+        const fetched = await Promise.all(slice.map(w => fetchCardById(w.id).catch(() => null)));
+        cards = fetched.filter(Boolean);
+      } else {
+        const data = await fetchCards({
+          query: state.query.trim(),
+          setId: state.setId,
+          rarity: state.rarity,
+          type: state.type,
+          supertype: state.supertype,
+          hpMin: state.hpMin,
+          hpMax: state.hpMax,
+          sort: state.sort,
+          page: state.page
+        });
+        if (reqId !== state.lastReqId) return;
+        cards = (data.data || []).map(normalizeCard);
+        total = data.totalCount || cards.length;
+      }
 
-      const cards = (data.data || []).map(normalizeCard);
+      if (reqId !== state.lastReqId) return;
       loading.hidden = true;
 
       if (!cards.length) {
@@ -241,7 +292,6 @@
       }
       grid.innerHTML = cards.map(cardHTML).join("");
       attachCardHandlers(cards);
-      const total = data.totalCount || cards.length;
       const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       meta.textContent = `${total.toLocaleString()} card${total === 1 ? "" : "s"}`;
       pageInfo.textContent = `Page ${state.page} of ${totalPages.toLocaleString()}`;
@@ -261,12 +311,14 @@
     const img = c.image
       ? `<img src="${escapeAttr(c.image)}" alt="${escapeAttr(c.name)}" loading="lazy" />`
       : `<div class="card-img-placeholder">${escapeText(c.name)}</div>`;
+    const watched = !!state.watchlist[c.id];
+    const heart = `<button class="heart-btn ${watched ? "active" : ""}" data-watch="${escapeAttr(c.id)}" aria-label="${watched ? "Remove from" : "Add to"} watchlist">♥</button>`;
     const priceClass = c.primaryPrice ? "price" : "price muted";
     const priceLabel = c.primaryPrice ? formatMoney(c.primaryPrice) : "Price pending";
     const meta = `${c.setName || ""}${c.number ? " · #" + c.number : ""}`;
     return `
       <article class="card" data-card-id="${escapeAttr(c.id)}">
-        <div class="card-image-wrap">${rarity}${img}</div>
+        <div class="card-image-wrap">${rarity}${heart}${img}</div>
         <div class="card-body">
           <h3 class="card-title">${escapeText(c.name)}</h3>
           <div class="card-meta">${escapeText(meta)}</div>
@@ -289,6 +341,12 @@
       btn.addEventListener("click", e => {
         e.stopPropagation();
         openDetail(lookup[btn.dataset.id]);
+      });
+    });
+    document.querySelectorAll("#card-grid .heart-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        toggleWatch(lookup[btn.dataset.watch], btn);
       });
     });
   }
@@ -325,6 +383,7 @@
 
     renderVariantTabs();
     renderVariantContent();
+    syncDetailWatch();
 
     document.getElementById("detail-modal").classList.add("open");
     document.getElementById("overlay").hidden = false;
@@ -656,6 +715,119 @@
     });
   }
 
+  // ---- Watchlist ----
+  function toggleWatch(card, btn) {
+    if (!card) return;
+    if (state.watchlist[card.id]) {
+      delete state.watchlist[card.id];
+    } else {
+      state.watchlist[card.id] = {
+        id: card.id,
+        name: card.name,
+        setName: card.setName,
+        setId: card.setId,
+        number: card.number,
+        rarity: card.rarity,
+        image: card.image,
+        lastPrice: card.primaryPrice,
+        addedAt: Date.now()
+      };
+    }
+    persistWatchlist();
+    if (btn) btn.classList.toggle("active", !!state.watchlist[card.id]);
+    // Sync the detail-modal watch button if this is the active card
+    if (state.activeCard && state.activeCard.id === card.id) syncDetailWatch();
+    // Sync any other heart buttons on the same card in the grid
+    document.querySelectorAll(`#card-grid .heart-btn[data-watch="${cssEsc(card.id)}"]`).forEach(b => {
+      b.classList.toggle("active", !!state.watchlist[card.id]);
+    });
+    renderWatchCount();
+    renderWatchDrawer();
+  }
+
+  function cssEsc(s) {
+    return String(s).replace(/[^a-zA-Z0-9_-]/g, ch => "\\" + ch);
+  }
+
+  function syncDetailWatch() {
+    const btn = document.getElementById("detail-watch");
+    const label = document.getElementById("detail-watch-label");
+    const card = state.activeCard;
+    if (!btn || !card) return;
+    const watched = !!state.watchlist[card.id];
+    btn.classList.toggle("active", watched);
+    label.textContent = watched ? "Watching" : "Watch";
+  }
+
+  function renderWatchCount() {
+    document.getElementById("watch-count").textContent = Object.keys(state.watchlist).length;
+  }
+
+  function renderWatchDrawer() {
+    const itemsEl = document.getElementById("watch-items");
+    const list = Object.values(state.watchlist).sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+
+    if (list.length === 0) {
+      itemsEl.innerHTML = `<div class="cart-empty">Nothing on your watchlist yet.<br/>Tap the ♥ on any card to save it.</div>`;
+      return;
+    }
+    itemsEl.innerHTML = list.map(w => {
+      const thumb = w.image
+        ? `<img src="${escapeAttr(w.image)}" alt="" />`
+        : escapeText((w.name || "").split(/\s+/).slice(0, 3).map(s => s[0]).join(""));
+      const meta = `${w.setName || ""}${w.number ? " · #" + w.number : ""}`;
+      const price = w.lastPrice ? formatMoney(w.lastPrice) : "—";
+      return `
+        <div class="cart-item">
+          <div class="cart-item-thumb">${thumb}</div>
+          <div class="cart-item-info">
+            <div class="cart-item-name">${escapeText(w.name)}</div>
+            <div class="cart-item-variant">${escapeText(meta)}</div>
+            <div class="cart-item-controls">
+              <button class="qty-btn" data-watch-view="${escapeAttr(w.id)}" title="View">View</button>
+              <button class="remove-link" data-watch-remove="${escapeAttr(w.id)}">Remove</button>
+            </div>
+          </div>
+          <div class="cart-item-price">${price}</div>
+        </div>
+      `;
+    }).join("");
+
+    itemsEl.querySelectorAll("[data-watch-view]").forEach(b => {
+      b.addEventListener("click", async () => {
+        const id = b.dataset.watchView;
+        closeWatchDrawer();
+        const card = await fetchCardById(id);
+        if (card) openDetail(card);
+      });
+    });
+    itemsEl.querySelectorAll("[data-watch-remove]").forEach(b => {
+      b.addEventListener("click", () => {
+        const id = b.dataset.watchRemove;
+        delete state.watchlist[id];
+        persistWatchlist();
+        renderWatchCount();
+        renderWatchDrawer();
+        // Update heart icons currently in the grid
+        document.querySelectorAll(`#card-grid .heart-btn[data-watch="${cssEsc(id)}"]`).forEach(h => h.classList.remove("active"));
+        if (state.watchlistOnly) loadCards();
+      });
+    });
+  }
+
+  function openWatchDrawer() {
+    renderWatchDrawer();
+    document.getElementById("watch-drawer").classList.add("open");
+    document.getElementById("overlay").hidden = false;
+  }
+  function closeWatchDrawer() {
+    document.getElementById("watch-drawer").classList.remove("open");
+    if (!document.getElementById("detail-modal").classList.contains("open")
+        && !document.getElementById("cart-drawer").classList.contains("open")) {
+      document.getElementById("overlay").hidden = true;
+    }
+  }
+
   function flashButton(btn, label) {
     const original = btn.textContent;
     btn.textContent = label || "Added";
@@ -737,8 +909,23 @@
   function bindEvents() {
     document.getElementById("cart-button").addEventListener("click", openCart);
     document.getElementById("cart-close").addEventListener("click", closeCart);
+    document.getElementById("watch-button").addEventListener("click", openWatchDrawer);
+    document.getElementById("watch-close").addEventListener("click", closeWatchDrawer);
+    document.getElementById("watch-show-only").addEventListener("click", () => {
+      state.watchlistOnly = true;
+      state.page = 1;
+      const btn = document.getElementById("watchlist-only");
+      btn.setAttribute("aria-pressed", "true");
+      closeWatchDrawer();
+      loadCards();
+      window.scrollTo({ top: document.getElementById("cards").offsetTop - 20, behavior: "smooth" });
+    });
+    document.getElementById("detail-watch").addEventListener("click", () => {
+      if (state.activeCard) toggleWatch(state.activeCard);
+    });
     document.getElementById("overlay").addEventListener("click", () => {
       closeCart();
+      closeWatchDrawer();
       closeDetail();
     });
     document.getElementById("checkout-button").addEventListener("click", () => {
@@ -765,6 +952,53 @@
       loadCards();
     });
 
+    document.getElementById("sort-select").addEventListener("change", e => {
+      state.sort = e.target.value;
+      state.page = 1;
+      loadCards();
+    });
+
+    const advancedToggleBtn = document.getElementById("advanced-toggle");
+    const advancedPanel = document.getElementById("advanced-panel");
+    advancedToggleBtn.addEventListener("click", () => {
+      const isOpen = !advancedPanel.hidden;
+      advancedPanel.hidden = isOpen;
+      advancedToggleBtn.setAttribute("aria-expanded", String(!isOpen));
+    });
+
+    const advancedDebounced = debounce(() => { state.page = 1; loadCards(); }, 350);
+    document.getElementById("supertype-select").addEventListener("change", e => {
+      state.supertype = e.target.value;
+      state.page = 1;
+      loadCards();
+    });
+    document.getElementById("hp-min").addEventListener("input", e => {
+      state.hpMin = e.target.value.trim();
+      advancedDebounced();
+    });
+    document.getElementById("hp-max").addEventListener("input", e => {
+      state.hpMax = e.target.value.trim();
+      advancedDebounced();
+    });
+    document.getElementById("advanced-clear").addEventListener("click", () => {
+      state.supertype = "";
+      state.hpMin = "";
+      state.hpMax = "";
+      document.getElementById("supertype-select").value = "";
+      document.getElementById("hp-min").value = "";
+      document.getElementById("hp-max").value = "";
+      state.page = 1;
+      loadCards();
+    });
+
+    const watchOnlyBtn = document.getElementById("watchlist-only");
+    watchOnlyBtn.addEventListener("click", () => {
+      state.watchlistOnly = !state.watchlistOnly;
+      watchOnlyBtn.setAttribute("aria-pressed", String(state.watchlistOnly));
+      state.page = 1;
+      loadCards();
+    });
+
     document.getElementById("page-prev").addEventListener("click", () => {
       if (state.page > 1) {
         state.page--;
@@ -781,6 +1015,7 @@
     document.addEventListener("keydown", e => {
       if (e.key === "Escape") {
         closeCart();
+        closeWatchDrawer();
         closeCheckout();
         closeDetail();
       }
@@ -790,6 +1025,7 @@
   document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("year").textContent = new Date().getFullYear();
     renderCart();
+    renderWatchCount();
     bindEvents();
     await Promise.all([populateSetFilter(), populateChips()]);
     loadCards();

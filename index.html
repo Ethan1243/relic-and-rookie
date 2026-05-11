@@ -34,6 +34,9 @@
         <span class="theme-icon theme-icon-light" aria-hidden="true">☀</span>
         <span class="theme-icon theme-icon-dark" aria-hidden="true">☾</span>
       </button>
+      <button id="watch-button" class="cart-button cart-button-ghost" aria-label="Open watchlist">
+        <span class="heart-icon" aria-hidden="true">♥</span> <span id="watch-count" class="cart-count">0</span>
+      </button>
       <button id="cart-button" class="cart-button" aria-label="Open cart">
         Cart <span id="cart-count" class="cart-count">0</span>
       </button>
@@ -62,7 +65,40 @@
     <div class="filter-bar">
       <input id="search-input" type="search" placeholder="Search by card name…" autocomplete="off" />
       <select id="set-select" aria-label="Filter by set"></select>
+      <select id="sort-select" aria-label="Sort cards">
+        <option value="-set.releaseDate,number">Newest first</option>
+        <option value="set.releaseDate,number">Oldest first</option>
+        <option value="name">Name A → Z</option>
+        <option value="-name">Name Z → A</option>
+        <option value="-cardmarket.prices.averageSellPrice">Price: high → low</option>
+        <option value="cardmarket.prices.averageSellPrice">Price: low → high</option>
+        <option value="-hp">HP: high → low</option>
+        <option value="hp">HP: low → high</option>
+      </select>
+      <button id="advanced-toggle" class="btn-link-toggle" type="button" aria-expanded="false">Advanced</button>
+      <button id="watchlist-only" class="btn-link-toggle" type="button" aria-pressed="false">Watchlist only</button>
       <div class="filter-meta" id="result-meta"></div>
+    </div>
+
+    <div id="advanced-panel" class="advanced-panel" hidden>
+      <label>
+        <span>Supertype</span>
+        <select id="supertype-select">
+          <option value="">All</option>
+          <option value="Pokémon">Pokémon</option>
+          <option value="Trainer">Trainer</option>
+          <option value="Energy">Energy</option>
+        </select>
+      </label>
+      <label>
+        <span>HP min</span>
+        <input id="hp-min" type="number" min="0" max="1000" step="10" placeholder="e.g. 100" />
+      </label>
+      <label>
+        <span>HP max</span>
+        <input id="hp-max" type="number" min="0" max="1000" step="10" placeholder="e.g. 250" />
+      </label>
+      <button id="advanced-clear" type="button" class="btn-link-toggle">Clear advanced</button>
     </div>
 
     <div class="chip-groups">
@@ -100,6 +136,18 @@
     </p>
   </section>
 </main>
+
+<!-- Watchlist drawer -->
+<aside id="watch-drawer" class="cart-drawer" aria-hidden="true">
+  <div class="cart-drawer-head">
+    <h3>Watchlist</h3>
+    <button id="watch-close" class="icon-button" aria-label="Close watchlist">&times;</button>
+  </div>
+  <div id="watch-items" class="cart-items"></div>
+  <div class="cart-footer">
+    <button id="watch-show-only" class="btn btn-ghost-dark btn-block">Show only watchlist in catalog</button>
+  </div>
+</aside>
 
 <!-- Cart drawer -->
 <aside id="cart-drawer" class="cart-drawer" aria-hidden="true">
@@ -186,7 +234,12 @@
             <span class="muted-label">Buy now</span>
             <span class="detail-price" id="detail-price">—</span>
           </div>
-          <button id="detail-add" class="btn btn-primary">Add to cart</button>
+          <div class="detail-buy-actions">
+            <button id="detail-watch" class="btn btn-ghost-dark" type="button">
+              <span class="heart-icon">♥</span> <span id="detail-watch-label">Watch</span>
+            </button>
+            <button id="detail-add" class="btn btn-primary">Add to cart</button>
+          </div>
         </div>
       </div>
     </div>

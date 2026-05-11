@@ -122,7 +122,16 @@ a { color: inherit; text-decoration: none; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  font-family: inherit;
+  font-size: 14px;
 }
+.cart-button-ghost {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--border-strong);
+}
+.cart-button-ghost:hover { background: var(--bg-elev); }
+.cart-button-ghost .heart-icon { color: var(--accent); }
 
 .cart-count {
   background: var(--accent);
@@ -245,6 +254,63 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
   font-size: 13px;
   color: var(--ink-soft);
   margin-left: auto;
+}
+
+.btn-link-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn-link-toggle:hover { background: var(--bg-elev); }
+.btn-link-toggle[aria-pressed="true"],
+.btn-link-toggle[aria-expanded="true"] {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.advanced-panel {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.advanced-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+.advanced-panel input,
+.advanced-panel select {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--ink);
+  min-width: 140px;
+}
+.advanced-panel input:focus,
+.advanced-panel select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .loading, .empty {
@@ -380,6 +446,33 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
   backdrop-filter: blur(4px);
 }
 .tag.rarity { background: rgba(184, 137, 58, 0.95); color: #1a1a1a; font-weight: 600; }
+
+.heart-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: rgba(26, 26, 26, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #d8d4c8;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  backdrop-filter: blur(4px);
+  transition: transform 0.12s ease, color 0.15s, background-color 0.15s;
+}
+.heart-btn:hover { transform: scale(1.08); }
+.heart-btn.active {
+  background: rgba(217, 102, 102, 0.95);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.3);
+}
 
 .card-body {
   padding: 12px 14px 14px;
@@ -778,6 +871,10 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
 .muted-label { font-size: 11px; color: var(--ink-fainter); letter-spacing: 0.4px; text-transform: uppercase; font-weight: 600; }
 .detail-price { font-size: 28px; font-weight: 800; letter-spacing: -0.4px; }
 .detail-buy .btn-primary { padding: 14px 28px; font-size: 15px; }
+.detail-buy-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#detail-watch.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+#detail-watch .heart-icon { color: inherit; }
+#detail-watch.active .heart-icon { color: #fff; }
 
 /* Checkout */
 .checkout-form { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 14px; }
@@ -920,6 +1017,12 @@ html[data-theme="dark"] .site-footer { background: #07090c; }
     font-size: 16px;
   }
   .filter-meta { margin-left: 0; width: 100%; }
+
+  .btn-link-toggle { font-size: 13px; padding: 10px 14px; flex: 1; min-width: 0; }
+  .advanced-panel { padding: 12px; gap: 10px; }
+  .advanced-panel label { flex: 1 1 calc(50% - 5px); min-width: 0; }
+  .advanced-panel input,
+  .advanced-panel select { min-width: 0; width: 100%; font-size: 16px; }
 
   .chip-groups { gap: 8px; margin-bottom: 16px; }
   .chip-group { gap: 8px; }
