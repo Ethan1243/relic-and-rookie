@@ -936,6 +936,30 @@
     });
   }
 
+  async function exportWatchlist() {
+    const list = Object.values(state.watchlist);
+    const msg = document.getElementById("watch-export-msg");
+    if (!list.length) {
+      msg.hidden = false;
+      msg.textContent = "Watchlist is empty.";
+      return;
+    }
+    const text = list.map(w => {
+      const setBit = w.setName ? ` — ${w.setName}` : "";
+      const numBit = w.number ? ` #${w.number}` : "";
+      return `- ${w.name}${setBit}${numBit}  (id: ${w.id})`;
+    }).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      msg.hidden = false;
+      msg.textContent = `Copied ${list.length} card${list.length === 1 ? "" : "s"} to clipboard. Paste it anywhere.`;
+    } catch (e) {
+      // Fallback: show the text in the message so user can copy manually
+      msg.hidden = false;
+      msg.textContent = "Couldn't access clipboard. Select and copy this list:\n\n" + text;
+    }
+  }
+
   function openWatchDrawer() {
     renderWatchDrawer();
     document.getElementById("watch-drawer").classList.add("open");
@@ -1041,6 +1065,7 @@
       loadCards();
       window.scrollTo({ top: document.getElementById("cards").offsetTop - 20, behavior: "smooth" });
     });
+    document.getElementById("watch-export").addEventListener("click", exportWatchlist);
     document.getElementById("detail-watch").addEventListener("click", () => {
       if (state.activeCard) toggleWatch(state.activeCard);
     });

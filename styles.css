@@ -706,6 +706,8 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
 }
 
 .cart-footer { border-top: 1px solid var(--border); padding: 18px 20px; }
+.watch-footer { display: flex; flex-direction: column; gap: 10px; }
+.watch-footer .fine-print { white-space: pre-wrap; margin-top: 4px; }
 
 .cart-totals {
   display: flex;
