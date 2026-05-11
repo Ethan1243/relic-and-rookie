@@ -709,6 +709,38 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
 .watch-footer { display: flex; flex-direction: column; gap: 10px; }
 .watch-footer .fine-print { white-space: pre-wrap; margin-top: 4px; }
 
+.watch-export-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.watch-export-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.watch-export-status.success { color: #2f7a3a; }
+.watch-export-status.error { color: var(--accent); }
+.watch-export-box textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  white-space: pre;
+  overflow: auto;
+}
+
 .cart-totals {
   display: flex;
   justify-content: space-between;

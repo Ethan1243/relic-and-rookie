@@ -157,8 +157,12 @@
   <div id="watch-items" class="cart-items"></div>
   <div class="cart-footer watch-footer">
     <button id="watch-show-only" class="btn btn-ghost-dark btn-block">Show only watchlist in catalog</button>
-    <button id="watch-export" class="btn btn-ghost-dark btn-block">Export list (copy to clipboard)</button>
-    <p id="watch-export-msg" class="fine-print" hidden></p>
+    <button id="watch-export" class="btn btn-primary btn-block">Export list</button>
+    <div id="watch-export-box" class="watch-export-box" hidden>
+      <div class="watch-export-status" id="watch-export-status"></div>
+      <textarea id="watch-export-output" rows="8" readonly></textarea>
+      <button id="watch-export-copy" class="btn btn-ghost-dark btn-block" type="button">Copy to clipboard</button>
+    </div>
   </div>
 </aside>
 

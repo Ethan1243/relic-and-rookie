@@ -938,25 +938,57 @@
 
   async function exportWatchlist() {
     const list = Object.values(state.watchlist);
-    const msg = document.getElementById("watch-export-msg");
+    const box = document.getElementById("watch-export-box");
+    const status = document.getElementById("watch-export-status");
+    const output = document.getElementById("watch-export-output");
+
     if (!list.length) {
-      msg.hidden = false;
-      msg.textContent = "Watchlist is empty.";
+      box.hidden = false;
+      status.className = "watch-export-status error";
+      status.textContent = "Your watchlist is empty. Tap the ♥ on any card to add it, then try again.";
+      output.value = "";
+      output.style.display = "none";
       return;
     }
+    output.style.display = "";
+
     const text = list.map(w => {
       const setBit = w.setName ? ` — ${w.setName}` : "";
       const numBit = w.number ? ` #${w.number}` : "";
       return `- ${w.name}${setBit}${numBit}  (id: ${w.id})`;
     }).join("\n");
+
+    box.hidden = false;
+    output.value = text;
+    output.focus();
+    output.select();
+
+    status.className = "watch-export-status";
+    status.textContent = `${list.length} card${list.length === 1 ? "" : "s"} in your watchlist. Copying…`;
+
     try {
       await navigator.clipboard.writeText(text);
-      msg.hidden = false;
-      msg.textContent = `Copied ${list.length} card${list.length === 1 ? "" : "s"} to clipboard. Paste it anywhere.`;
+      status.className = "watch-export-status success";
+      status.textContent = `Copied ${list.length} card${list.length === 1 ? "" : "s"} to clipboard.`;
     } catch (e) {
-      // Fallback: show the text in the message so user can copy manually
-      msg.hidden = false;
-      msg.textContent = "Couldn't access clipboard. Select and copy this list:\n\n" + text;
+      status.className = "watch-export-status error";
+      status.textContent = "Auto-copy blocked. Tap the box, select all, and copy manually.";
+    }
+  }
+
+  async function copyExportToClipboard() {
+    const output = document.getElementById("watch-export-output");
+    const status = document.getElementById("watch-export-status");
+    if (!output.value) return;
+    try {
+      await navigator.clipboard.writeText(output.value);
+      status.className = "watch-export-status success";
+      status.textContent = "Copied!";
+    } catch (e) {
+      output.focus();
+      output.select();
+      status.className = "watch-export-status error";
+      status.textContent = "Auto-copy blocked. Long-press / select all in the box above to copy.";
     }
   }
 
@@ -1066,6 +1098,7 @@
       window.scrollTo({ top: document.getElementById("cards").offsetTop - 20, behavior: "smooth" });
     });
     document.getElementById("watch-export").addEventListener("click", exportWatchlist);
+    document.getElementById("watch-export-copy").addEventListener("click", copyExportToClipboard);
     document.getElementById("detail-watch").addEventListener("click", () => {
       if (state.activeCard) toggleWatch(state.activeCard);
     });
