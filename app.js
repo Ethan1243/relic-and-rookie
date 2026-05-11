@@ -1,22 +1,40 @@
 (function () {
   const FREE_SHIPPING_THRESHOLD = 75;
   const SHIPPING_COST = 9.95;
-  const STORAGE_KEY = "rr_cart_v2";
+  const STORAGE_KEY = "rr_cart_v3";
+  const THEME_KEY = "rr_theme";
   const PAGE_SIZE = 24;
+  const API_BASE = "https://api.pokemontcg.io/v2";
 
-  // ---- State ----
+  // PSA grade multipliers applied to raw market price.
+  // These are typical industry estimates, not real graded sales.
+  const PSA_MULTIPLIERS = [
+    { grade: "PSA 6", mult: 1.4 },
+    { grade: "PSA 7", mult: 2.0 },
+    { grade: "PSA 8", mult: 3.2 },
+    { grade: "PSA 9", mult: 5.5 },
+    { grade: "PSA 10", mult: 12.0 }
+  ];
+
+  const RAW_CONDITIONS = [
+    { key: "low", label: "Lightly Played" },
+    { key: "mid", label: "Near Mint (mid)" },
+    { key: "market", label: "Market" },
+    { key: "high", label: "High" }
+  ];
+
   const state = {
     cart: loadCart(),
-    game: "pokemon",
     page: 1,
     query: "",
     setId: "",
-    pokemonSets: [],
-    magicSets: [],
-    yugiohArchetypes: [],
-    lastReqId: 0
+    sets: [],
+    lastReqId: 0,
+    activeCard: null,
+    activeVariant: null
   };
 
+  // ---- Persistence ----
   function loadCart() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -27,6 +45,7 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.cart));
   }
 
+  // ---- Helpers ----
   function formatMoney(n) {
     if (n == null || isNaN(n)) return "—";
     return "$" + Number(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -40,193 +59,89 @@
     };
   }
 
-  // ---- API adapters ----
-  // Each adapter exposes: fetchSets(), fetchCards({query, setId, page}) -> {cards, total}
-  // and normalizes results into a common shape:
-  // { id, name, meta, setName, rarity, image, price, priceLabel }
-
-  const pokemonApi = {
-    base: "https://api.pokemontcg.io/v2",
-    async fetchSets() {
-      const res = await fetch(`${this.base}/sets?orderBy=-releaseDate&pageSize=500`);
-      const data = await res.json();
-      return (data.data || []).map(s => ({ id: s.id, name: `${s.name} (${s.series})` }));
-    },
-    async fetchCards({ query, setId, page }) {
-      const parts = [];
-      if (query) parts.push(`name:"*${query.replace(/"/g, "")}*"`);
-      if (setId) parts.push(`set.id:${setId}`);
-      const q = parts.join(" ");
-      const url = new URL(`${this.base}/cards`);
-      if (q) url.searchParams.set("q", q);
-      url.searchParams.set("page", String(page));
-      url.searchParams.set("pageSize", String(PAGE_SIZE));
-      url.searchParams.set("orderBy", "-set.releaseDate,number");
-      const res = await fetch(url.toString());
-      if (!res.ok) throw new Error("Pokemon API error");
-      const data = await res.json();
-      const cards = (data.data || []).map(c => {
-        const tcg = c.tcgplayer && c.tcgplayer.prices;
-        const prices = tcg ? Object.values(tcg) : [];
-        const market = prices
-          .map(p => p && (p.market || p.mid))
-          .find(x => typeof x === "number" && x > 0);
-        return {
-          id: `pkm-${c.id}`,
-          name: c.name,
-          meta: `${c.set && c.set.name ? c.set.name : ""}${c.number ? " · #" + c.number : ""}`,
-          setName: c.set && c.set.name,
-          rarity: c.rarity || "",
-          image: c.images && (c.images.small || c.images.large),
-          price: market || null,
-          priceLabel: market ? formatMoney(market) : "Market price pending"
-        };
-      });
-      return { cards, total: data.totalCount || cards.length };
-    }
-  };
-
-  const magicApi = {
-    base: "https://api.scryfall.com",
-    async fetchSets() {
-      const res = await fetch(`${this.base}/sets`);
-      const data = await res.json();
-      return (data.data || [])
-        .filter(s => s.card_count > 0 && (s.set_type === "core" || s.set_type === "expansion" || s.set_type === "masters" || s.set_type === "draft_innovation" || s.set_type === "commander"))
-        .sort((a, b) => (b.released_at || "").localeCompare(a.released_at || ""))
-        .map(s => ({ id: s.code, name: `${s.name} (${(s.released_at || "").slice(0, 4)})` }));
-    },
-    async fetchCards({ query, setId, page }) {
-      // Scryfall paginates with `page` query param at 175 results/page max. We page client-side
-      // through their results to respect our PAGE_SIZE.
-      const parts = [];
-      if (query) parts.push(query);
-      if (setId) parts.push(`set:${setId}`);
-      if (!parts.length) parts.push("year>=1993"); // browse-all fallback
-      const q = parts.join(" ");
-      // Scryfall page param returns 175/page. Translate our page to a slice.
-      const scryPageSize = 175;
-      const scryPage = Math.floor(((page - 1) * PAGE_SIZE) / scryPageSize) + 1;
-      const sliceOffset = ((page - 1) * PAGE_SIZE) % scryPageSize;
-      const url = new URL(`${this.base}/cards/search`);
-      url.searchParams.set("q", q);
-      url.searchParams.set("unique", "prints");
-      url.searchParams.set("page", String(scryPage));
-      const res = await fetch(url.toString());
-      if (res.status === 404) return { cards: [], total: 0 };
-      if (!res.ok) throw new Error("Scryfall error");
-      const data = await res.json();
-      const total = data.total_cards || (data.data || []).length;
-      const slice = (data.data || []).slice(sliceOffset, sliceOffset + PAGE_SIZE);
-      const cards = slice.map(c => {
-        const usd = c.prices && (c.prices.usd || c.prices.usd_foil || c.prices.usd_etched);
-        const img = (c.image_uris && c.image_uris.small)
-          || (c.card_faces && c.card_faces[0] && c.card_faces[0].image_uris && c.card_faces[0].image_uris.small);
-        const price = usd ? parseFloat(usd) : null;
-        return {
-          id: `mtg-${c.id}`,
-          name: c.name,
-          meta: `${c.set_name || ""}${c.collector_number ? " · #" + c.collector_number : ""}`,
-          setName: c.set_name,
-          rarity: c.rarity || "",
-          image: img,
-          price,
-          priceLabel: price ? formatMoney(price) : "Market price pending"
-        };
-      });
-      return { cards, total };
-    }
-  };
-
-  const yugiohApi = {
-    base: "https://db.ygoprodeck.com/api/v7",
-    cache: { all: null, fetchedAt: 0 },
-    async loadAll() {
-      const FRESH = 1000 * 60 * 30;
-      if (this.cache.all && Date.now() - this.cache.fetchedAt < FRESH) return this.cache.all;
-      const res = await fetch(`${this.base}/cardinfo.php?num=2000&offset=0`);
-      if (!res.ok) throw new Error("YGOPRODeck error");
-      const data = await res.json();
-      this.cache.all = data.data || [];
-      this.cache.fetchedAt = Date.now();
-      return this.cache.all;
-    },
-    async fetchSets() {
-      // YGOPRODeck has many archetypes; we use them as a filter proxy for "set/theme".
-      const res = await fetch(`${this.base}/archetypes.php`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return (data || []).slice(0, 200).map(a => ({ id: a.archetype_name, name: a.archetype_name }));
-    },
-    async fetchCards({ query, setId, page }) {
-      const url = new URL(`${this.base}/cardinfo.php`);
-      if (query) url.searchParams.set("fname", query);
-      if (setId) url.searchParams.set("archetype", setId);
-      url.searchParams.set("num", String(PAGE_SIZE));
-      url.searchParams.set("offset", String((page - 1) * PAGE_SIZE));
-      const res = await fetch(url.toString());
-      if (res.status === 400) return { cards: [], total: 0 };
-      if (!res.ok) throw new Error("YGOPRODeck error");
-      const data = await res.json();
-      const total = (data.meta && data.meta.total_rows) || (data.data || []).length;
-      const cards = (data.data || []).map(c => {
-        const tcgPrice = c.card_prices && c.card_prices[0] && parseFloat(c.card_prices[0].tcgplayer_price);
-        const img = c.card_images && c.card_images[0] && (c.card_images[0].image_url_small || c.card_images[0].image_url);
-        const price = tcgPrice > 0 ? tcgPrice : null;
-        return {
-          id: `ygo-${c.id}`,
-          name: c.name,
-          meta: `${c.type || ""}${c.archetype ? " · " + c.archetype : ""}`,
-          setName: c.archetype || c.type,
-          rarity: c.rarity || "",
-          image: img,
-          price,
-          priceLabel: price ? formatMoney(price) : "Market price pending"
-        };
-      });
-      return { cards, total };
-    }
-  };
-
-  const apis = { pokemon: pokemonApi, magic: magicApi, yugioh: yugiohApi };
-
-  // ---- Rendering ----
-
-  function renderTabs() {
-    document.querySelectorAll(".tab").forEach(tab => {
-      tab.classList.toggle("active", tab.dataset.game === state.game);
-    });
+  function escapeText(s) {
+    return String(s == null ? "" : s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   }
+  function escapeAttr(s) {
+    return String(s == null ? "" : s).replace(/["&<>]/g, c => ({ "\"": "&quot;", "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  }
+
+  function variantLabel(key) {
+    return ({
+      normal: "Normal",
+      holofoil: "Holofoil",
+      reverseHolofoil: "Reverse Holo",
+      "1stEditionHolofoil": "1st Edition Holo",
+      "1stEditionNormal": "1st Edition",
+      unlimitedHolofoil: "Unlimited Holo"
+    })[key] || key;
+  }
+
+  // ---- API ----
+  async function fetchSets() {
+    const res = await fetch(`${API_BASE}/sets?orderBy=-releaseDate&pageSize=500`);
+    const data = await res.json();
+    return (data.data || []).map(s => ({ id: s.id, name: `${s.name} (${s.series})` }));
+  }
+
+  async function fetchCards({ query, setId, page }) {
+    const parts = [];
+    if (query) parts.push(`name:"*${query.replace(/"/g, "")}*"`);
+    if (setId) parts.push(`set.id:${setId}`);
+    const q = parts.join(" ");
+    const url = new URL(`${API_BASE}/cards`);
+    if (q) url.searchParams.set("q", q);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("pageSize", String(PAGE_SIZE));
+    url.searchParams.set("orderBy", "-set.releaseDate,number");
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error("Pokemon API error");
+    return res.json();
+  }
+
+  function normalizeCard(c) {
+    const tcg = (c.tcgplayer && c.tcgplayer.prices) || {};
+    const cm = (c.cardmarket && c.cardmarket.prices) || null;
+    const variants = Object.keys(tcg).map(k => ({
+      key: k,
+      label: variantLabel(k),
+      prices: tcg[k]
+    }));
+    const primary = variants.find(v => typeof (v.prices.market || v.prices.mid) === "number" && (v.prices.market || v.prices.mid) > 0) || variants[0];
+    const primaryPrice = primary && (primary.prices.market || primary.prices.mid) || null;
+    return {
+      id: c.id,
+      name: c.name,
+      setName: c.set && c.set.name,
+      setSeries: c.set && c.set.series,
+      number: c.number,
+      rarity: c.rarity || "",
+      artist: c.artist || "",
+      types: (c.types || []).join(" · "),
+      hp: c.hp,
+      image: c.images && (c.images.small || c.images.large),
+      imageLarge: c.images && (c.images.large || c.images.small),
+      variants,
+      primaryVariant: primary && primary.key,
+      primaryPrice,
+      cardmarket: cm
+    };
+  }
+
+  // ---- Catalog rendering ----
+  function renderTabs() { /* removed; single-game */ }
 
   async function populateSetFilter() {
     const select = document.getElementById("set-select");
-    select.innerHTML = `<option value="">Loading…</option>`;
+    select.innerHTML = `<option value="">Loading sets…</option>`;
     let sets = [];
     try {
-      if (state.game === "pokemon") {
-        if (!state.pokemonSets.length) state.pokemonSets = await pokemonApi.fetchSets();
-        sets = state.pokemonSets;
-      } else if (state.game === "magic") {
-        if (!state.magicSets.length) state.magicSets = await magicApi.fetchSets();
-        sets = state.magicSets;
-      } else if (state.game === "yugioh") {
-        if (!state.yugiohArchetypes.length) state.yugiohArchetypes = await yugiohApi.fetchSets();
-        sets = state.yugiohArchetypes;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    const label = state.game === "yugioh" ? "All archetypes" : "All sets";
-    select.innerHTML = `<option value="">${label}</option>` +
+      if (!state.sets.length) state.sets = await fetchSets();
+      sets = state.sets;
+    } catch (e) { console.error(e); }
+    select.innerHTML = `<option value="">All sets</option>` +
       sets.map(s => `<option value="${escapeAttr(s.id)}">${escapeText(s.name)}</option>`).join("");
     select.value = state.setId;
-  }
-
-  function escapeText(s) {
-    return String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-  }
-  function escapeAttr(s) {
-    return String(s).replace(/["&<>]/g, c => ({ "\"": "&quot;", "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
   }
 
   async function loadCards() {
@@ -243,18 +158,18 @@
     loading.hidden = false;
     meta.textContent = "";
 
-    const api = apis[state.game];
     const reqId = ++state.lastReqId;
     try {
-      const { cards, total } = await api.fetchCards({
+      const data = await fetchCards({
         query: state.query.trim(),
         setId: state.setId,
         page: state.page
       });
-      // Discard if a newer request was issued
       if (reqId !== state.lastReqId) return;
 
+      const cards = (data.data || []).map(normalizeCard);
       loading.hidden = true;
+
       if (!cards.length) {
         empty.hidden = false;
         meta.textContent = "0 results";
@@ -264,7 +179,8 @@
         return;
       }
       grid.innerHTML = cards.map(cardHTML).join("");
-      attachAddHandlers(cards);
+      attachCardHandlers(cards);
+      const total = data.totalCount || cards.length;
       const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
       meta.textContent = `${total.toLocaleString()} card${total === 1 ? "" : "s"}`;
       pageInfo.textContent = `Page ${state.page} of ${totalPages.toLocaleString()}`;
@@ -284,97 +200,288 @@
     const img = c.image
       ? `<img src="${escapeAttr(c.image)}" alt="${escapeAttr(c.name)}" loading="lazy" />`
       : `<div class="card-img-placeholder">${escapeText(c.name)}</div>`;
-    const priceClass = c.price ? "price" : "price muted";
-    const buyDisabled = c.price ? "" : "disabled";
+    const priceClass = c.primaryPrice ? "price" : "price muted";
+    const priceLabel = c.primaryPrice ? formatMoney(c.primaryPrice) : "Price pending";
+    const meta = `${c.setName || ""}${c.number ? " · #" + c.number : ""}`;
     return `
       <article class="card" data-card-id="${escapeAttr(c.id)}">
         <div class="card-image-wrap">${rarity}${img}</div>
         <div class="card-body">
           <h3 class="card-title">${escapeText(c.name)}</h3>
-          <div class="card-meta">${escapeText(c.meta || "")}</div>
+          <div class="card-meta">${escapeText(meta)}</div>
           <div class="card-foot">
-            <div class="${priceClass}">${escapeText(c.priceLabel)}</div>
-            <button class="add-btn" data-id="${escapeAttr(c.id)}" ${buyDisabled}>Add</button>
+            <div class="${priceClass}">${escapeText(priceLabel)}</div>
+            <button class="view-btn" data-id="${escapeAttr(c.id)}">View</button>
           </div>
         </div>
       </article>
     `;
   }
 
-  function attachAddHandlers(cards) {
+  function attachCardHandlers(cards) {
     const lookup = Object.fromEntries(cards.map(c => [c.id, c]));
-    document.querySelectorAll("#card-grid .add-btn").forEach(btn => {
-      btn.addEventListener("click", () => {
-        const card = lookup[btn.dataset.id];
-        if (!card || !card.price) return;
-        addToCart({
-          id: card.id,
-          name: card.name,
-          meta: card.meta,
-          price: card.price,
-          image: card.image
-        });
-        flashButton(btn);
+    document.querySelectorAll("#card-grid .card").forEach(el => {
+      const id = el.dataset.cardId;
+      el.addEventListener("click", () => openDetail(lookup[id]));
+    });
+    document.querySelectorAll("#card-grid .view-btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        openDetail(lookup[btn.dataset.id]);
       });
     });
   }
 
-  // ---- Curated (non-card) items ----
-  function renderCurated() {
-    const grids = document.querySelectorAll(".grid-curated[data-curated]");
-    grids.forEach(grid => {
-      const cat = grid.dataset.curated;
-      const items = (window.CURATED_PRODUCTS || []).filter(p => p.category === cat);
-      grid.innerHTML = items.map(curatedCardHTML).join("");
-    });
-    document.querySelectorAll(".grid-curated .add-btn").forEach(btn => {
+  // ---- Detail modal ----
+  function openDetail(card) {
+    if (!card) return;
+    state.activeCard = card;
+    state.activeVariant = card.primaryVariant || (card.variants[0] && card.variants[0].key) || null;
+
+    document.getElementById("detail-set").textContent =
+      `${card.setName || "—"}${card.setSeries ? " · " + card.setSeries : ""}`;
+    document.getElementById("detail-name").textContent = card.name;
+    const metaParts = [];
+    if (card.number) metaParts.push(`#${card.number}`);
+    if (card.rarity) metaParts.push(card.rarity);
+    if (card.types) metaParts.push(card.types);
+    if (card.hp) metaParts.push(`${card.hp} HP`);
+    if (card.artist) metaParts.push(`Illus. ${card.artist}`);
+    document.getElementById("detail-meta").textContent = metaParts.join(" · ");
+
+    const img = document.getElementById("detail-image");
+    const fallback = document.getElementById("detail-image-fallback");
+    if (card.imageLarge) {
+      img.src = card.imageLarge;
+      img.alt = card.name;
+      img.hidden = false;
+      fallback.hidden = true;
+    } else {
+      img.hidden = true;
+      fallback.hidden = false;
+      fallback.textContent = card.name;
+    }
+
+    renderVariantTabs();
+    renderVariantContent();
+
+    document.getElementById("detail-modal").classList.add("open");
+    document.getElementById("overlay").hidden = false;
+  }
+
+  function renderVariantTabs() {
+    const card = state.activeCard;
+    const wrap = document.getElementById("detail-variants");
+    if (!card.variants.length) {
+      wrap.innerHTML = "";
+      return;
+    }
+    wrap.innerHTML = card.variants.map(v =>
+      `<button class="variant-tab ${v.key === state.activeVariant ? "active" : ""}" data-variant="${escapeAttr(v.key)}">${escapeText(v.label)}</button>`
+    ).join("");
+    wrap.querySelectorAll(".variant-tab").forEach(btn => {
       btn.addEventListener("click", () => {
-        const id = btn.dataset.id;
-        const p = (window.CURATED_PRODUCTS || []).find(x => x.id === id);
-        if (!p) return;
-        addToCart({ id: p.id, name: p.name, meta: p.meta, price: p.price, image: null });
-        flashButton(btn);
+        state.activeVariant = btn.dataset.variant;
+        renderVariantTabs();
+        renderVariantContent();
       });
     });
   }
 
-  function curatedCardHTML(p) {
-    const initials = p.name.split(/\s+/).slice(0, 3).map(w => w[0]).join("");
-    const tag = p.tag ? `<span class="tag">${escapeText(p.tag)}</span>` : "";
-    return `
-      <article class="card">
-        <div class="card-img-placeholder">${tag}${initials}</div>
-        <div class="card-body">
-          <h3 class="card-title">${escapeText(p.name)}</h3>
-          <div class="card-meta">${escapeText(p.meta)}</div>
-          <div class="card-foot">
-            <div class="price">${formatMoney(p.price)}</div>
-            <button class="add-btn" data-id="${escapeAttr(p.id)}">Add to cart</button>
-          </div>
-        </div>
-      </article>
+  function activeVariantPrices() {
+    const card = state.activeCard;
+    if (!card) return null;
+    const v = card.variants.find(x => x.key === state.activeVariant);
+    return v ? v.prices : null;
+  }
+
+  function renderVariantContent() {
+    const prices = activeVariantPrices() || {};
+    const market = prices.market || prices.mid || null;
+
+    // Raw price table
+    const rawBody = document.querySelector("#raw-table tbody");
+    rawBody.innerHTML = RAW_CONDITIONS.map(c => {
+      const v = prices[c.key];
+      return `<tr><td>${escapeText(c.label)}</td><td>${v ? formatMoney(v) : "—"}</td></tr>`;
+    }).join("");
+
+    // PSA estimate table
+    const psaBody = document.querySelector("#psa-table tbody");
+    psaBody.innerHTML = PSA_MULTIPLIERS.map(p => {
+      const est = market ? market * p.mult : null;
+      return `<tr><td>${escapeText(p.grade)}</td><td>${est ? formatMoney(est) : "—"}</td><td>${p.mult.toFixed(1)}×</td></tr>`;
+    }).join("");
+
+    // Buy now price + handler
+    const priceEl = document.getElementById("detail-price");
+    priceEl.textContent = market ? formatMoney(market) : "—";
+
+    const addBtn = document.getElementById("detail-add");
+    addBtn.disabled = !market;
+    addBtn.onclick = () => {
+      const card = state.activeCard;
+      if (!card || !market) return;
+      const variantKey = state.activeVariant;
+      const cartKey = `pkm-${card.id}--${variantKey}`;
+      addToCart({
+        id: cartKey,
+        name: card.name,
+        meta: `${card.setName || ""}${card.number ? " · #" + card.number : ""}`,
+        variant: variantLabel(variantKey),
+        price: market,
+        image: card.image
+      });
+      flashButton(addBtn, "Added");
+    };
+
+    drawChart(market, state.activeCard.cardmarket);
+  }
+
+  // ---- Price history chart (inline SVG) ----
+  function drawChart(currentPrice, cardmarket) {
+    const svg = document.getElementById("price-chart");
+    svg.innerHTML = "";
+    const trendSource = document.getElementById("trend-source");
+
+    if (!currentPrice) {
+      trendSource.textContent = "No data available";
+      svg.innerHTML = `<text x="300" y="110" text-anchor="middle" class="chart-axis-text">No price data</text>`;
+      return;
+    }
+
+    const points = buildHistory(currentPrice, cardmarket);
+    trendSource.textContent = cardmarket && (cardmarket.avg30 || cardmarket.avg7)
+      ? "Anchored to Cardmarket 1/7/30-day averages"
+      : "Modeled trend (no Cardmarket history)";
+
+    const W = 600, H = 220, PADL = 48, PADR = 12, PADT = 12, PADB = 28;
+    const innerW = W - PADL - PADR;
+    const innerH = H - PADT - PADB;
+    const min = Math.min(...points.map(p => p.y));
+    const max = Math.max(...points.map(p => p.y));
+    const range = Math.max(max - min, 0.01);
+    // Pad y-range slightly
+    const yMin = min - range * 0.1;
+    const yMax = max + range * 0.1;
+    const yRange = yMax - yMin;
+
+    const xAt = i => PADL + (i / (points.length - 1)) * innerW;
+    const yAt = v => PADT + innerH - ((v - yMin) / yRange) * innerH;
+
+    // Gridlines (5 horizontal)
+    let grid = "";
+    for (let i = 0; i <= 4; i++) {
+      const y = PADT + (i / 4) * innerH;
+      const value = yMax - (i / 4) * yRange;
+      grid += `<line class="chart-grid-line" x1="${PADL}" y1="${y}" x2="${W - PADR}" y2="${y}" />`;
+      grid += `<text class="chart-axis-text" x="${PADL - 6}" y="${y + 3}" text-anchor="end">${formatMoney(value)}</text>`;
+    }
+
+    // Area path
+    let area = `M ${xAt(0)} ${yAt(yMin)} `;
+    points.forEach((p, i) => { area += `L ${xAt(i)} ${yAt(p.y)} `; });
+    area += `L ${xAt(points.length - 1)} ${yAt(yMin)} Z`;
+
+    // Line path
+    let line = "";
+    points.forEach((p, i) => {
+      line += `${i === 0 ? "M" : "L"} ${xAt(i)} ${yAt(p.y)} `;
+    });
+
+    // X axis labels (start, middle, end)
+    const labels = [
+      { idx: 0, text: "30d ago" },
+      { idx: Math.floor(points.length / 2), text: "15d ago" },
+      { idx: points.length - 1, text: "Today" }
+    ];
+    let xAxis = "";
+    labels.forEach(l => {
+      xAxis += `<text class="chart-axis-text" x="${xAt(l.idx)}" y="${H - 8}" text-anchor="middle">${l.text}</text>`;
+    });
+
+    // Last point dot
+    const lastX = xAt(points.length - 1);
+    const lastY = yAt(points[points.length - 1].y);
+
+    svg.innerHTML = `
+      ${grid}
+      <path class="chart-area" d="${area}" />
+      <path class="chart-line" d="${line}" />
+      <circle class="chart-dot" cx="${lastX}" cy="${lastY}" r="3.5" />
+      ${xAxis}
     `;
   }
 
-  function flashButton(btn) {
-    const original = btn.textContent;
-    btn.textContent = "Added";
-    btn.disabled = true;
-    setTimeout(() => {
-      btn.textContent = original;
-      // Re-enable based on whether item has a price (always true if it was added)
-      btn.disabled = false;
-    }, 900);
+  function buildHistory(current, cardmarket) {
+    // 30 daily points ending at `current`.
+    // If Cardmarket avg1/7/30 exist, anchor the curve at days 0, 23, 29 to those values.
+    const days = 30;
+    const points = new Array(days).fill(0).map((_, i) => ({ x: i, y: current }));
+    const seed = (current * 100) | 0;
+    const rand = mulberry32(seed);
+
+    const anchor = (idx, value) => { if (value && value > 0) points[idx].y = value; };
+    if (cardmarket) {
+      anchor(0, cardmarket.avg30);     // 30 days ago
+      anchor(days - 8, cardmarket.avg7); // ~7 days ago
+      anchor(days - 2, cardmarket.avg1); // ~1 day ago
+    } else {
+      // Synthesize a starting point: drift +/- 15% from current
+      points[0].y = current * (0.85 + rand() * 0.3);
+    }
+    points[days - 1].y = current;
+
+    // Interpolate between anchors and add small noise
+    const anchorIdx = points
+      .map((p, i) => ({ i, set: p.y !== current || i === days - 1 || i === 0 }))
+      .filter(a => a.set || (cardmarket && (a.i === 0 || a.i === days - 8 || a.i === days - 2)))
+      .map(a => a.i);
+    const sortedAnchors = Array.from(new Set([0, days - 1, ...anchorIdx])).sort((a, b) => a - b);
+
+    for (let k = 0; k < sortedAnchors.length - 1; k++) {
+      const a = sortedAnchors[k];
+      const b = sortedAnchors[k + 1];
+      const ay = points[a].y;
+      const by = points[b].y;
+      for (let i = a + 1; i < b; i++) {
+        const t = (i - a) / (b - a);
+        const base = ay + (by - ay) * t;
+        const noise = (rand() - 0.5) * Math.max(0.04, range01(ay, by)) * 0.18;
+        points[i].y = Math.max(0.01, base * (1 + noise));
+      }
+    }
+    return points;
+  }
+
+  function range01(a, b) {
+    const m = (a + b) / 2;
+    return m > 0 ? Math.abs(b - a) / m : 0.1;
+  }
+
+  // Seeded RNG so identical prices produce identical charts within a session
+  function mulberry32(a) {
+    return function () {
+      let t = (a += 0x6D2B79F5);
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function closeDetail() {
+    document.getElementById("detail-modal").classList.remove("open");
+    document.getElementById("overlay").hidden = true;
   }
 
   // ---- Cart ----
-  // Cart stores snapshots: { id: { qty, name, meta, price, image } }
   function addToCart(product) {
     const existing = state.cart[product.id];
     state.cart[product.id] = {
       qty: (existing && existing.qty || 0) + 1,
       name: product.name,
       meta: product.meta,
+      variant: product.variant,
       price: product.price,
       image: product.image || null
     };
@@ -423,11 +530,13 @@
         const thumb = l.image
           ? `<img src="${escapeAttr(l.image)}" alt="" />`
           : escapeText(l.name.split(/\s+/).slice(0, 3).map(w => w[0]).join(""));
+        const variant = l.variant ? `<div class="cart-item-variant">${escapeText(l.variant)}</div>` : "";
         return `
           <div class="cart-item">
             <div class="cart-item-thumb">${thumb}</div>
             <div class="cart-item-info">
               <div class="cart-item-name">${escapeText(l.name)}</div>
+              ${variant}
               <div class="cart-item-controls">
                 <button class="qty-btn" data-action="dec" data-id="${escapeAttr(l.id)}">−</button>
                 <span>${l.qty}</span>
@@ -455,13 +564,25 @@
     });
   }
 
+  function flashButton(btn, label) {
+    const original = btn.textContent;
+    btn.textContent = label || "Added";
+    btn.disabled = true;
+    setTimeout(() => {
+      btn.textContent = original;
+      btn.disabled = false;
+    }, 900);
+  }
+
   function openCart() {
     document.getElementById("cart-drawer").classList.add("open");
     document.getElementById("overlay").hidden = false;
   }
   function closeCart() {
     document.getElementById("cart-drawer").classList.remove("open");
-    document.getElementById("overlay").hidden = true;
+    if (!document.getElementById("detail-modal").classList.contains("open")) {
+      document.getElementById("overlay").hidden = true;
+    }
   }
 
   function openCheckout() {
@@ -489,8 +610,6 @@
     const formData = new FormData(form);
     const email = formData.get("email");
 
-    // Demo: in production, POST to your server which creates a Stripe
-    // PaymentIntent (or Checkout Session) and returns a client secret.
     console.log("Order placed (demo)", {
       customer: Object.fromEntries(formData.entries()),
       items: cartLines(),
@@ -508,11 +627,28 @@
     renderCart();
   }
 
+  // ---- Theme ----
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+  }
+  function toggleTheme() {
+    const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+    applyTheme(current === "dark" ? "light" : "dark");
+    // Re-render chart if open so it picks up the new colors
+    if (document.getElementById("detail-modal").classList.contains("open")) {
+      renderVariantContent();
+    }
+  }
+
   // ---- Event wiring ----
   function bindEvents() {
     document.getElementById("cart-button").addEventListener("click", openCart);
     document.getElementById("cart-close").addEventListener("click", closeCart);
-    document.getElementById("overlay").addEventListener("click", closeCart);
+    document.getElementById("overlay").addEventListener("click", () => {
+      closeCart();
+      closeDetail();
+    });
     document.getElementById("checkout-button").addEventListener("click", () => {
       closeCart();
       openCheckout();
@@ -521,19 +657,8 @@
     document.getElementById("checkout-form").addEventListener("submit", handleCheckoutSubmit);
     document.getElementById("success-close").addEventListener("click", closeCheckout);
 
-    document.querySelectorAll(".tab").forEach(tab => {
-      tab.addEventListener("click", () => {
-        if (tab.dataset.game === state.game) return;
-        state.game = tab.dataset.game;
-        state.page = 1;
-        state.query = "";
-        state.setId = "";
-        document.getElementById("search-input").value = "";
-        renderTabs();
-        populateSetFilter();
-        loadCards();
-      });
-    });
+    document.getElementById("detail-close").addEventListener("click", closeDetail);
+    document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
 
     const searchInput = document.getElementById("search-input");
     searchInput.addEventListener("input", debounce(() => {
@@ -549,7 +674,11 @@
     });
 
     document.getElementById("page-prev").addEventListener("click", () => {
-      if (state.page > 1) { state.page--; loadCards(); window.scrollTo({ top: document.getElementById("cards").offsetTop - 20, behavior: "smooth" }); }
+      if (state.page > 1) {
+        state.page--;
+        loadCards();
+        window.scrollTo({ top: document.getElementById("cards").offsetTop - 20, behavior: "smooth" });
+      }
     });
     document.getElementById("page-next").addEventListener("click", () => {
       state.page++;
@@ -558,14 +687,16 @@
     });
 
     document.addEventListener("keydown", e => {
-      if (e.key === "Escape") { closeCart(); closeCheckout(); }
+      if (e.key === "Escape") {
+        closeCart();
+        closeCheckout();
+        closeDetail();
+      }
     });
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("year").textContent = new Date().getFullYear();
-    renderTabs();
-    renderCurated();
     renderCart();
     bindEvents();
     await populateSetFilter();

@@ -3,12 +3,20 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Relic & Rookie — Trading Cards, Vintage & Funko Pops</title>
+<title>Relic & Rookie — Pokémon Cards</title>
 <link rel="stylesheet" href="styles.css" />
+<link rel="preconnect" href="https://api.pokemontcg.io" />
 <link rel="preconnect" href="https://images.pokemontcg.io" />
 <link rel="preconnect" href="https://images.scrydex.com" />
-<link rel="preconnect" href="https://cards.scryfall.io" />
-<link rel="preconnect" href="https://images.ygoprodeck.com" />
+<script>
+  // Apply theme before paint to avoid flash
+  (function () {
+    const saved = localStorage.getItem("rr_theme");
+    const prefers = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const theme = saved || (prefers ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
 </head>
 <body>
 <header class="site-header">
@@ -18,21 +26,25 @@
       <span class="brand-name">Relic &amp; Rookie</span>
     </a>
     <nav class="nav">
-      <a href="#cards">Cards</a>
-      <a href="#vintage">Vintage</a>
-      <a href="#funko">Funko Pops</a>
+      <a href="#cards">Browse</a>
       <a href="#about">About</a>
     </nav>
-    <button id="cart-button" class="cart-button" aria-label="Open cart">
-      Cart <span id="cart-count" class="cart-count">0</span>
-    </button>
+    <div class="header-actions">
+      <button id="theme-toggle" class="icon-button-bordered" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <span class="theme-icon theme-icon-light" aria-hidden="true">☀</span>
+        <span class="theme-icon theme-icon-dark" aria-hidden="true">☾</span>
+      </button>
+      <button id="cart-button" class="cart-button" aria-label="Open cart">
+        Cart <span id="cart-count" class="cart-count">0</span>
+      </button>
+    </div>
   </div>
 </header>
 
 <section class="hero">
   <div class="container">
-    <h1>Real cards. Live prices. Shipped from a shop, not a warehouse.</h1>
-    <p>Browse the entire Pokémon, Magic: The Gathering, and Yu-Gi-Oh! print runs with live market prices. Hand-curated vintage and Funko alongside.</p>
+    <h1>Every Pokémon card. Live prices. Real grading data.</h1>
+    <p>Browse 20,000+ cards across every English set. Click any card for variant pricing, PSA-grade estimates, and a 30-day market trend.</p>
     <div class="hero-actions">
       <a href="#cards" class="btn btn-primary">Browse cards</a>
       <a href="#about" class="btn btn-ghost">Our story</a>
@@ -43,14 +55,8 @@
 <main class="container">
   <section id="cards" class="catalog">
     <div class="catalog-head">
-      <h2>Trading cards</h2>
-      <p>Search across every printed card in three major TCGs. Market prices pulled live from public price feeds.</p>
-    </div>
-
-    <div class="tabs" role="tablist">
-      <button class="tab active" role="tab" data-game="pokemon">Pokémon</button>
-      <button class="tab" role="tab" data-game="magic">Magic: The Gathering</button>
-      <button class="tab" role="tab" data-game="yugioh">Yu-Gi-Oh!</button>
+      <h2>Pokémon TCG catalog</h2>
+      <p>Filter by set, search by card name. Click any card for detailed pricing.</p>
     </div>
 
     <div class="filter-bar">
@@ -70,36 +76,21 @@
     </div>
   </section>
 
-  <section id="vintage" class="catalog">
-    <div class="catalog-head">
-      <h2>Vintage</h2>
-      <p>One-of-a-kind pieces from the 60s through the 90s.</p>
-    </div>
-    <div class="grid grid-curated" data-curated="vintage"></div>
-  </section>
-
-  <section id="funko" class="catalog">
-    <div class="catalog-head">
-      <h2>Funko Pops</h2>
-      <p>Commons, chases, and the occasional grail.</p>
-    </div>
-    <div class="grid grid-curated" data-curated="funko"></div>
-  </section>
-
   <section id="about" class="about">
     <h2>About the shop</h2>
     <p>
-      Relic &amp; Rookie is a small collectibles shop run by people who actually pull packs,
-      hunt estate sales, and chase down chase variants. Every item is inspected and graded honestly.
-      If you have a question about condition or provenance, just ask.
+      Relic &amp; Rookie is a small collectibles shop run by people who actually pull packs
+      and grade their own pulls. Every card is inspected and priced honestly. If you have
+      a question about condition or provenance, just ask.
     </p>
     <p>
-      Free domestic shipping on orders over $75. Tracked, insured, and packed in toploaders or
-      bubble wrap as appropriate.
+      Free domestic shipping on orders over $75. Tracked, insured, and packed in toploaders
+      with team bags.
     </p>
   </section>
 </main>
 
+<!-- Cart drawer -->
 <aside id="cart-drawer" class="cart-drawer" aria-hidden="true">
   <div class="cart-drawer-head">
     <h3>Your cart</h3>
@@ -116,6 +107,70 @@
 </aside>
 <div id="overlay" class="overlay" hidden></div>
 
+<!-- Card detail modal -->
+<div id="detail-modal" class="modal modal-wide" aria-hidden="true">
+  <div class="modal-content detail-content">
+    <button id="detail-close" class="icon-button modal-close" aria-label="Close">&times;</button>
+    <div class="detail-grid">
+      <div class="detail-image-wrap">
+        <img id="detail-image" alt="" />
+        <div id="detail-image-fallback" class="card-img-placeholder" hidden></div>
+      </div>
+      <div class="detail-info">
+        <div class="detail-eyebrow" id="detail-set"></div>
+        <h2 class="detail-title" id="detail-name"></h2>
+        <div class="detail-meta" id="detail-meta"></div>
+
+        <div class="detail-section">
+          <div class="section-head">
+            <h3>Pricing — Raw (ungraded)</h3>
+            <span class="section-sub">Source: TCGplayer market</span>
+          </div>
+          <div id="detail-variants" class="variant-tabs"></div>
+          <table class="price-table" id="raw-table">
+            <thead><tr><th>Condition</th><th>Price</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="detail-section">
+          <div class="section-head">
+            <h3>Pricing — PSA graded</h3>
+            <span class="section-sub">Estimated from raw market</span>
+          </div>
+          <table class="price-table psa-table" id="psa-table">
+            <thead><tr><th>Grade</th><th>Estimate</th><th>Multiplier</th></tr></thead>
+            <tbody></tbody>
+          </table>
+          <p class="fine-print">
+            PSA estimates use typical grade multipliers applied to the raw market price.
+            Real graded sales vary; we display this as a quick reference, not a quote.
+          </p>
+        </div>
+
+        <div class="detail-section">
+          <div class="section-head">
+            <h3>30-day price trend</h3>
+            <span class="section-sub" id="trend-source">Cardmarket averages</span>
+          </div>
+          <div class="chart-wrap">
+            <svg id="price-chart" viewBox="0 0 600 220" preserveAspectRatio="none" aria-label="Price trend"></svg>
+          </div>
+        </div>
+
+        <div class="detail-buy">
+          <div class="detail-price-now">
+            <span class="muted-label">Buy now</span>
+            <span class="detail-price" id="detail-price">—</span>
+          </div>
+          <button id="detail-add" class="btn btn-primary">Add to cart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Checkout modal -->
 <div id="checkout-modal" class="modal" aria-hidden="true">
   <div class="modal-content">
     <div class="modal-head">
@@ -141,8 +196,7 @@
           <label>CVC<input name="cvc" inputmode="numeric" placeholder="123" required /></label>
         </div>
         <p class="demo-note">
-          Demo mode: no real payment is processed. Wire this form up to Stripe Checkout
-          (or a similar provider) on the server before going live.
+          Demo mode: no real payment is processed. Wire this to Stripe Checkout before going live.
         </p>
       </fieldset>
       <div class="checkout-summary">
@@ -154,7 +208,7 @@
     </form>
     <div id="checkout-success" class="checkout-success" hidden>
       <h4>Order received</h4>
-      <p>Confirmation sent to <span id="success-email"></span>. Your collectibles ship within two business days.</p>
+      <p>Confirmation sent to <span id="success-email"></span>. Your cards ship within two business days.</p>
       <button id="success-close" class="btn btn-primary">Keep browsing</button>
     </div>
   </div>
@@ -167,16 +221,13 @@
     <div class="attribution">
       <h4>Data &amp; image credits</h4>
       <ul>
-        <li>Pokémon card data and images via the <a href="https://pokemontcg.io" target="_blank" rel="noopener">Pokémon TCG API</a>. The literal and graphical information presented on this site about Pokémon TCG, including card images, is © 1995&ndash;2026 The Pokémon Company, Nintendo, Creatures Inc., and GAME FREAK Inc.</li>
-        <li>Magic: The Gathering card data and images via <a href="https://scryfall.com/docs/api" target="_blank" rel="noopener">Scryfall</a>. Magic: The Gathering is © Wizards of the Coast LLC. Card images used per Scryfall's image guidelines.</li>
-        <li>Yu-Gi-Oh! card data and images via the <a href="https://ygoprodeck.com/api-guide/" target="_blank" rel="noopener">YGOPRODeck API</a>. Yu-Gi-Oh! is © Konami Digital Entertainment.</li>
-        <li>Prices shown are live market estimates from the respective public APIs and may differ from in-shop pricing.</li>
+        <li>Pokémon card data and images via the <a href="https://pokemontcg.io" target="_blank" rel="noopener">Pokémon TCG API</a>. Card art is © 1995&ndash;2026 The Pokémon Company, Nintendo, Creatures Inc., and GAME FREAK Inc.</li>
+        <li>Raw prices sourced live from TCGplayer via the Pokémon TCG API. PSA-graded prices shown here are estimates derived from raw market price and standard grade multipliers — not real graded sales data.</li>
       </ul>
     </div>
   </div>
 </footer>
 
-<script src="data.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
