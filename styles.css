@@ -628,10 +628,106 @@ a { color: inherit; text-decoration: none; }
 .attribution a { color: #d8c9ad; text-decoration: underline; }
 .attribution a:hover { color: #fff; }
 
-@media (max-width: 720px) {
-  .hero { padding: 56px 0; }
-  .hero h1 { font-size: 32px; }
+/* ---- Mobile ---- */
+@media (max-width: 860px) {
   .nav { display: none; }
-  .header-inner { gap: 12px; }
-  .filter-bar select { max-width: none; }
+}
+
+@media (max-width: 720px) {
+  .container { padding: 0 16px; }
+
+  /* Header */
+  .header-inner { padding: 12px 16px; gap: 10px; }
+  .brand-name { font-size: 16px; }
+  .brand-mark { width: 34px; height: 34px; font-size: 13px; }
+  .cart-button { padding: 9px 14px; font-size: 14px; }
+
+  /* Hero */
+  .hero { padding: 48px 0; }
+  .hero h1 { font-size: 28px; line-height: 1.2; }
+  .hero p { font-size: 15px; margin-bottom: 24px; }
+  .hero-actions { flex-direction: column; align-items: stretch; padding: 0 8px; }
+  .hero-actions .btn { width: 100%; }
+
+  /* Catalog */
+  .catalog { padding: 40px 0 8px; }
+  .catalog-head h2 { font-size: 24px; }
+  .catalog-head p { font-size: 14px; }
+
+  /* Tabs scroll horizontally with momentum */
+  .tabs {
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 10px 16px; font-size: 13px; }
+
+  /* Filter bar stacks */
+  .filter-bar { gap: 10px; }
+  .filter-bar input[type="search"],
+  .filter-bar select {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    padding: 12px 16px;
+    font-size: 16px; /* prevent iOS zoom on focus */
+  }
+  .filter-meta { margin-left: 0; width: 100%; }
+
+  /* Grids: 2 columns on phone */
+  .grid-cards { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .grid-curated { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  .card-body { padding: 10px 12px 12px; gap: 5px; }
+  .card-title { font-size: 13px; }
+  .card-meta { font-size: 11px; }
+  .price { font-size: 14px; }
+  .price.muted { font-size: 11px; }
+
+  .add-btn {
+    padding: 9px 12px;
+    font-size: 12px;
+    min-height: 36px;
+  }
+  .card-foot { gap: 6px; }
+
+  .tag { font-size: 10px; padding: 2px 7px; top: 8px; left: 8px; }
+
+  /* Pagination */
+  .pagination { gap: 10px; flex-wrap: wrap; }
+  .pagination .btn { flex: 1; min-width: 120px; padding: 12px 14px; }
+  .page-info { font-size: 13px; width: 100%; order: -1; }
+
+  /* Cart drawer takes full width */
+  .cart-drawer { width: 100vw; max-width: 100vw; }
+  .cart-drawer-head { padding: 14px 16px; }
+  .cart-items { padding: 8px 16px; }
+  .cart-footer { padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); }
+
+  /* Checkout modal full-screen feel */
+  .modal { padding: 0; align-items: stretch; }
+  .modal-content {
+    border-radius: 0;
+    max-height: 100vh;
+    height: 100vh;
+    max-width: 100vw;
+  }
+  .modal-head { padding: 14px 16px; }
+  .checkout-form { padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .checkout-form input { font-size: 16px; padding: 12px 14px; } /* prevent iOS zoom */
+  .form-row { flex-direction: column; gap: 12px; }
+
+  .about { padding: 48px 0; }
+  .about h2 { font-size: 22px; }
+  .about p { font-size: 14px; }
+
+  .site-footer { padding: 28px 0; }
+  .attribution li { font-size: 11px; }
+}
+
+@media (max-width: 400px) {
+  .hero h1 { font-size: 24px; }
+  .grid-cards { gap: 10px; }
+  .card-title { font-size: 12px; -webkit-line-clamp: 2; }
 }
