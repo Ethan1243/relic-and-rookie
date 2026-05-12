@@ -994,10 +994,38 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
   font-family: inherit;
   color: var(--ink);
 }
-.checkout-form input:focus {
+.checkout-form input:focus,
+.checkout-form select:focus,
+.checkout-form textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.checkout-form select,
+.checkout-form textarea {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--ink);
+}
+.checkout-form textarea { resize: vertical; min-height: 70px; }
+.checkout-form input[type="file"] {
+  padding: 8px;
+  background: var(--bg-elev);
+  font-size: 13px;
+}
+.sell-intro {
+  margin: 0 24px;
+  padding: 14px 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--ink-soft);
+  line-height: 1.5;
 }
 .form-row { display: flex; gap: 12px; flex-wrap: wrap; }
 

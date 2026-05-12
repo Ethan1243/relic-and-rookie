@@ -38,6 +38,9 @@
       <button id="watch-button" class="cart-button cart-button-ghost" aria-label="Open watchlist">
         <span class="heart-icon" aria-hidden="true">♥</span> <span id="watch-count" class="cart-count">0</span>
       </button>
+      <button id="sell-button" class="cart-button cart-button-ghost" aria-label="Sell a card">
+        Sell
+      </button>
       <button id="cart-button" class="cart-button" aria-label="Open cart">
         Cart <span id="cart-count" class="cart-count">0</span>
       </button>
@@ -142,8 +145,8 @@
       a question about condition or provenance, just ask.
     </p>
     <p>
-      Free domestic shipping on orders over $75. Tracked, insured, and packed in toploaders
-      with team bags.
+      $1 flat shipping, free on orders over $25. Cards ship in toploaders with team bags.
+      Have a card to sell? Hit the Sell button up top — we list it for you and you ship to the buyer.
     </p>
   </section>
 </main>
@@ -304,6 +307,65 @@
       <h4>Order received</h4>
       <p>Confirmation sent to <span id="success-email"></span>. Your cards ship within two business days.</p>
       <button id="success-close" class="btn btn-primary">Keep browsing</button>
+    </div>
+  </div>
+</div>
+
+<!-- Sell-your-card modal -->
+<div id="sell-modal" class="modal" aria-hidden="true">
+  <div class="modal-content">
+    <div class="modal-head">
+      <h3>Sell your card</h3>
+      <button id="sell-close" class="icon-button" aria-label="Close">&times;</button>
+    </div>
+    <p class="sell-intro">
+      List a Pokémon card on our site. We'll review your submission within 24 hours.
+      If approved, your card goes live in the binder. Buyer pays through our checkout,
+      then you ship directly to them. We take a small consignment fee on each sale.
+    </p>
+    <form id="sell-form" class="checkout-form" novalidate>
+      <div class="form-row">
+        <label>Your name<input name="seller_name" required autocomplete="name" /></label>
+        <label>Email<input type="email" name="seller_email" required autocomplete="email" /></label>
+      </div>
+      <label>Card name<input name="card_name" required placeholder="e.g. Charizard ex" /></label>
+      <div class="form-row">
+        <label>Set (optional)<input name="card_set" placeholder="e.g. Obsidian Flames" /></label>
+        <label>Card number (optional)<input name="card_number" placeholder="e.g. 199/197" /></label>
+      </div>
+      <div class="form-row">
+        <label>Condition
+          <select name="condition" required>
+            <option value="">Select…</option>
+            <option>Mint</option>
+            <option>Near Mint</option>
+            <option>Lightly Played</option>
+            <option>Moderately Played</option>
+            <option>Heavily Played</option>
+            <option>Damaged</option>
+            <option>Graded (PSA / CGC / BGS)</option>
+          </select>
+        </label>
+        <label>Asking price (USD)
+          <input type="number" min="0.25" step="0.01" name="asking_price" required placeholder="9.99" />
+        </label>
+      </div>
+      <label>Photos — front, back, any flaws
+        <input type="file" name="photos" accept="image/*" multiple required />
+      </label>
+      <label>Notes (optional)
+        <textarea name="notes" rows="3" placeholder="Anything we should know — flaws, grade, etc."></textarea>
+      </label>
+      <p class="fine-print">
+        By submitting, you confirm you own this card and agree to ship within
+        two business days of sale. We'll email you with approval status.
+      </p>
+      <button type="submit" class="btn btn-primary btn-block">Submit for review</button>
+    </form>
+    <div id="sell-success" class="checkout-success" hidden>
+      <h4>Submission received</h4>
+      <p>Thanks! We'll review your card and email <span id="sell-success-email"></span> within 24 hours.</p>
+      <button id="sell-success-close" class="btn btn-primary">Done</button>
     </div>
   </div>
 </div>

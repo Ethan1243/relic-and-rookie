@@ -1,11 +1,21 @@
 (function () {
-  const FREE_SHIPPING_THRESHOLD = 75;
-  const SHIPPING_COST = 9.95;
+  const FREE_SHIPPING_THRESHOLD = 25;
+  const SHIPPING_COST = 1.00;
   const STORAGE_KEY = "rr_cart_v3";
   const WATCH_KEY = "rr_watchlist_v1";
   const THEME_KEY = "rr_theme";
   const PAGE_SIZE = 24;
   const API_BASE = "https://api.pokemontcg.io/v2";
+
+  // Sign up free at https://web3forms.com (no card) using cethancoulthard@gmail.com
+  // and paste your access key below. Submissions are emailed to the address you
+  // registered with — Web3Forms locks delivery to the signup email for security.
+  const WEB3FORMS_KEY = "4b7b87a4-d916-4029-b280-4380ba545aa0";
+
+  // Free image host for sell-form photos. Sign up at https://api.imgbb.com
+  // (free, no card) and paste your API key below. Photos are uploaded here
+  // first; their URLs are then included in the Web3Forms email.
+  const IMGBB_KEY = "a6b896f41bfb948d6e7f8bbe7506ab03";
 
   // PSA grade multipliers applied to raw market price.
   // These are typical industry estimates, not real graded sales.
@@ -1068,6 +1078,83 @@
     renderCart();
   }
 
+  // ---- Sell-your-card submission ----
+  function openSellModal() {
+    document.getElementById("sell-form").hidden = false;
+    document.getElementById("sell-success").hidden = true;
+    document.getElementById("sell-form").reset();
+    document.getElementById("sell-modal").classList.add("open");
+  }
+  function closeSellModal() {
+    document.getElementById("sell-modal").classList.remove("open");
+  }
+
+  async function uploadToImgbb(file) {
+    const body = new FormData();
+    body.append("key", IMGBB_KEY);
+    body.append("image", file);
+    const res = await fetch("https://api.imgbb.com/1/upload", { method: "POST", body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error((data.error && data.error.message) || `Image upload failed (${res.status})`);
+    }
+    return data.data.url;
+  }
+
+  async function handleSellSubmit(e) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+
+    try {
+      if (!WEB3FORMS_KEY) throw new Error("Form not configured. Set WEB3FORMS_KEY in app.js.");
+      if (!IMGBB_KEY) throw new Error("Image host not configured. Set IMGBB_KEY in app.js (free signup at api.imgbb.com).");
+
+      const photoInput = form.querySelector('input[name="photos"]');
+      const files = Array.from(photoInput.files || []);
+      if (!files.length) throw new Error("Please attach at least one photo of the card.");
+
+      submitBtn.textContent = `Uploading photo 1 of ${files.length}…`;
+      const photoUrls = [];
+      for (let i = 0; i < files.length; i++) {
+        submitBtn.textContent = `Uploading photo ${i + 1} of ${files.length}…`;
+        photoUrls.push(await uploadToImgbb(files[i]));
+      }
+
+      submitBtn.textContent = "Submitting…";
+      const formData = new FormData();
+      // Pull non-file fields off the form so Web3Forms doesn't try to attach the files.
+      for (const [key, value] of new FormData(form).entries()) {
+        if (key === "photos") continue;
+        formData.append(key, value);
+      }
+      formData.append("access_key", WEB3FORMS_KEY);
+      formData.append("subject", `New card submission: ${formData.get("card_name")}`);
+      formData.append("from_name", "Relic & Rookie — Sell form");
+      photoUrls.forEach((url, i) => formData.append(`photo_${i + 1}`, url));
+      formData.append("photo_urls", photoUrls.join("\n"));
+
+      const res = await fetch("https://api.web3forms.com/submit", { method: "POST", body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        throw new Error(data.message || `Submission failed (${res.status})`);
+      }
+
+      document.getElementById("sell-success-email").textContent = formData.get("seller_email");
+      document.getElementById("sell-form").hidden = true;
+      document.getElementById("sell-success").hidden = false;
+    } catch (err) {
+      alert(`Sorry — we couldn't submit your card. ${err.message}`);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalLabel;
+    }
+  }
+
   // ---- Theme ----
   function applyTheme(theme) {
     document.documentElement.setAttribute("data-theme", theme);
@@ -1114,6 +1201,11 @@
     document.getElementById("checkout-close").addEventListener("click", closeCheckout);
     document.getElementById("checkout-form").addEventListener("submit", handleCheckoutSubmit);
     document.getElementById("success-close").addEventListener("click", closeCheckout);
+
+    document.getElementById("sell-button").addEventListener("click", openSellModal);
+    document.getElementById("sell-close").addEventListener("click", closeSellModal);
+    document.getElementById("sell-form").addEventListener("submit", handleSellSubmit);
+    document.getElementById("sell-success-close").addEventListener("click", closeSellModal);
 
     document.getElementById("detail-close").addEventListener("click", closeDetail);
     document.getElementById("theme-toggle").addEventListener("click", toggleTheme);
@@ -1196,6 +1288,7 @@
         closeCart();
         closeWatchDrawer();
         closeCheckout();
+        closeSellModal();
         closeDetail();
       }
     });
