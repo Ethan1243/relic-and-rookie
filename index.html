@@ -145,7 +145,7 @@
       a question about condition or provenance, just ask.
     </p>
     <p>
-      $1 flat shipping, free on orders over $25. Cards ship in toploaders with team bags.
+      $1.25 flat shipping, free on orders over $25. Cards ship in toploaders with team bags.
       Have a card to sell? Hit the Sell button up top — we list it for you and you ship to the buyer.
     </p>
   </section>
@@ -274,35 +274,19 @@
       <h3>Checkout</h3>
       <button id="checkout-close" class="icon-button" aria-label="Close checkout">&times;</button>
     </div>
-    <form id="checkout-form" class="checkout-form" novalidate>
-      <div class="form-row">
-        <label>Full name<input name="name" required autocomplete="name" /></label>
-        <label>Email<input type="email" name="email" required autocomplete="email" /></label>
-      </div>
-      <label>Shipping address<input name="address" required autocomplete="street-address" /></label>
-      <div class="form-row">
-        <label>City<input name="city" required autocomplete="address-level2" /></label>
-        <label>State / Region<input name="region" required autocomplete="address-level1" /></label>
-        <label>Postal code<input name="postal" required autocomplete="postal-code" /></label>
-      </div>
-      <fieldset class="payment-section">
-        <legend>Payment</legend>
-        <label>Card number<input name="card" inputmode="numeric" placeholder="4242 4242 4242 4242" required /></label>
-        <div class="form-row">
-          <label>Expiry<input name="expiry" placeholder="MM/YY" required /></label>
-          <label>CVC<input name="cvc" inputmode="numeric" placeholder="123" required /></label>
-        </div>
-        <p class="demo-note">
-          Demo mode: no real payment is processed. Wire this to Stripe Checkout before going live.
-        </p>
-      </fieldset>
+    <div id="checkout-form" class="checkout-pay">
       <div class="checkout-summary">
         <div><span>Items</span><span id="summary-items">$0.00</span></div>
         <div><span>Shipping</span><span id="summary-shipping">$0.00</span></div>
         <div class="checkout-total"><span>Total</span><span id="summary-total">$0.00</span></div>
       </div>
-      <button type="submit" class="btn btn-primary btn-block">Place order</button>
-    </form>
+      <p class="checkout-paypal-note">
+        Pay with PayPal or any major card through PayPal Checkout. Your shipping address
+        is collected by PayPal — we use it to mail your cards.
+      </p>
+      <div id="paypal-button-container"></div>
+      <div id="paypal-status" class="paypal-status" hidden></div>
+    </div>
     <div id="checkout-success" class="checkout-success" hidden>
       <h4>Order received</h4>
       <p>Confirmation sent to <span id="success-email"></span>. Your cards ship within two business days.</p>

@@ -1,6 +1,6 @@
 (function () {
   const FREE_SHIPPING_THRESHOLD = 25;
-  const SHIPPING_COST = 1.00;
+  const SHIPPING_COST = 1.25;
   const STORAGE_KEY = "rr_cart_v3";
   const WATCH_KEY = "rr_watchlist_v1";
   const THEME_KEY = "rr_theme";
@@ -16,6 +16,11 @@
   // (free, no card) and paste your API key below. Photos are uploaded here
   // first; their URLs are then included in the Web3Forms email.
   const IMGBB_KEY = "a6b896f41bfb948d6e7f8bbe7506ab03";
+
+  // PayPal Smart Buttons. Create an app at https://developer.paypal.com
+  // (Apps & Credentials) and paste the Client ID below. Use the Sandbox ID
+  // to test, then swap in the Live ID when ready to take real payments.
+  const PAYPAL_CLIENT_ID = "";
 
   // PSA grade multipliers applied to raw market price.
   // These are typical industry estimates, not real graded sales.
@@ -1036,11 +1041,12 @@
     }
   }
 
-  function openCheckout() {
+  async function openCheckout() {
     document.getElementById("checkout-form").hidden = false;
     document.getElementById("checkout-success").hidden = true;
     document.getElementById("checkout-modal").classList.add("open");
     updateCheckoutSummary();
+    await renderPaypal();
   }
   function closeCheckout() {
     document.getElementById("checkout-modal").classList.remove("open");
@@ -1054,28 +1060,99 @@
     document.getElementById("summary-total").textContent = formatMoney(sub + ship);
   }
 
-  function handleCheckoutSubmit(e) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    if (!form.checkValidity()) { form.reportValidity(); return; }
-    const formData = new FormData(form);
-    const email = formData.get("email");
-
-    console.log("Order placed (demo)", {
-      customer: Object.fromEntries(formData.entries()),
-      items: cartLines(),
-      subtotal: subtotal(),
-      shipping: shipping(subtotal()),
-      total: subtotal() + shipping(subtotal())
+  // ---- PayPal Smart Buttons ----
+  let paypalSdkPromise = null;
+  function loadPaypalSdk() {
+    if (!PAYPAL_CLIENT_ID) return Promise.resolve(false);
+    if (window.paypal) return Promise.resolve(true);
+    if (paypalSdkPromise) return paypalSdkPromise;
+    paypalSdkPromise = new Promise((resolve) => {
+      const s = document.createElement("script");
+      s.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(PAYPAL_CLIENT_ID)}&currency=USD`;
+      s.onload = () => resolve(true);
+      s.onerror = () => { paypalSdkPromise = null; resolve(false); };
+      document.head.appendChild(s);
     });
+    return paypalSdkPromise;
+  }
 
-    document.getElementById("success-email").textContent = email;
-    document.getElementById("checkout-form").hidden = true;
-    document.getElementById("checkout-success").hidden = false;
+  function setPaypalStatus(msg, tone) {
+    const el = document.getElementById("paypal-status");
+    if (!el) return;
+    if (!msg) { el.hidden = true; el.textContent = ""; return; }
+    el.hidden = false;
+    el.textContent = msg;
+    el.className = "paypal-status" + (tone ? ` paypal-status-${tone}` : "");
+  }
 
-    state.cart = {};
-    persistCart();
-    renderCart();
+  async function renderPaypal() {
+    const container = document.getElementById("paypal-button-container");
+    if (!container) return;
+    container.innerHTML = "";
+    setPaypalStatus("", null);
+
+    const sub = subtotal();
+    if (sub <= 0) {
+      setPaypalStatus("Cart is empty.", "warn");
+      return;
+    }
+
+    const loaded = await loadPaypalSdk();
+    if (!loaded || !window.paypal) {
+      setPaypalStatus("PayPal isn't configured yet. Set PAYPAL_CLIENT_ID in app.js.", "warn");
+      return;
+    }
+
+    const ship = shipping(sub);
+    const total = sub + ship;
+    const lines = cartLines();
+
+    try {
+      window.paypal.Buttons({
+        style: { layout: "vertical", color: "gold", shape: "rect", label: "paypal" },
+        createOrder: (data, actions) => actions.order.create({
+          purchase_units: [{
+            description: `Relic & Rookie — ${lines.length} item${lines.length === 1 ? "" : "s"}`,
+            amount: {
+              value: total.toFixed(2),
+              currency_code: "USD",
+              breakdown: {
+                item_total: { currency_code: "USD", value: sub.toFixed(2) },
+                shipping:   { currency_code: "USD", value: ship.toFixed(2) }
+              }
+            },
+            items: lines.map(l => ({
+              name: (l.name + (l.variant ? ` (${l.variant})` : "")).slice(0, 127),
+              quantity: String(l.qty),
+              unit_amount: { currency_code: "USD", value: (l.price || 0).toFixed(2) }
+            }))
+          }]
+        }),
+        onApprove: async (data, actions) => {
+          setPaypalStatus("Finalizing payment…", null);
+          try {
+            const details = await actions.order.capture();
+            const email = details.payer && details.payer.email_address;
+            document.getElementById("success-email").textContent = email || "your inbox";
+            document.getElementById("checkout-form").hidden = true;
+            document.getElementById("checkout-success").hidden = false;
+            state.cart = {};
+            persistCart();
+            renderCart();
+          } catch (err) {
+            setPaypalStatus(`Payment capture failed: ${err.message || err}`, "warn");
+          }
+        },
+        onError: (err) => {
+          setPaypalStatus(`PayPal error: ${(err && err.message) || err}`, "warn");
+        },
+        onCancel: () => {
+          setPaypalStatus("Payment cancelled.", null);
+        }
+      }).render(container);
+    } catch (err) {
+      setPaypalStatus(`Couldn't render PayPal buttons: ${err.message || err}`, "warn");
+    }
   }
 
   // ---- Sell-your-card submission ----
@@ -1199,7 +1276,6 @@
       openCheckout();
     });
     document.getElementById("checkout-close").addEventListener("click", closeCheckout);
-    document.getElementById("checkout-form").addEventListener("submit", handleCheckoutSubmit);
     document.getElementById("success-close").addEventListener("click", closeCheckout);
 
     document.getElementById("sell-button").addEventListener("click", openSellModal);

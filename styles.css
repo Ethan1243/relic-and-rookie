@@ -706,6 +706,27 @@ html[data-theme="dark"] .theme-icon-dark { display: inline; }
 }
 
 .cart-footer { border-top: 1px solid var(--border); padding: 18px 20px; }
+.checkout-pay { padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 16px; }
+.checkout-paypal-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.paypal-status {
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+.paypal-status-warn {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  color: #b45309;
+}
 .watch-footer { display: flex; flex-direction: column; gap: 10px; }
 .watch-footer .fine-print { white-space: pre-wrap; margin-top: 4px; }
 
